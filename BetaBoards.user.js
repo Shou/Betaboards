@@ -16,6 +16,12 @@
 // - Replace the contents of updated posts.
 //      - Group <tr>s in five and compare the contents of the ".c_post"s
 // - Clean up script.
+// - Don't add so many pages; use the ellipsis between pages.
+//      - Check if pages exist, if not speedcore them.
+//          - Make first page.
+//      - If no ellipsis exists, create it and add the current page number after.
+//      - Edit page number after ellipsis to match current page.
+//      - If there are pages after the ellipsis' neighbor, remove them.
 
 // {{{ Global variables
 
@@ -82,6 +88,26 @@ function tail(xs){
 // last :: [a] -> a
 function last(xs){
     return xs[xs.length - 1]
+}
+
+// | No more Flydom!
+// speedcore :: String -> Obj -> Tree -> DOMObj
+function speedcore(tagname, attrs, childs){
+    var e = document.createElement(tagname);
+    for (k in attrs){
+        if (typeof attrs[k] === "object")
+            for (l in attrs[k])
+                e[k][l] = attrs[k][l];
+        else e[k] = attrs[k];
+    }
+    for (var i = 0; i < childs.length; i = i + 3){
+        var el = speedcore( childs[i]
+                          , childs[i + 1]
+                          , childs[i + 2]
+                          );
+        e.appendChild(el);
+    }
+    return e;
 }
 
 // }}}
@@ -156,7 +182,8 @@ function pagesUpdate(){
 
     verb("Finding current page element...")
 
-    for (var i = 0; i < 2; i++) {
+    // Only the first two or less "cat-pages" elements.
+    for (var i = 0; i < Math.min(ps.length, 2); i++) {
         var ns = ps[i].children
 
         for (var j = 0; j < ns.length; j++) {
@@ -171,19 +198,28 @@ function pagesUpdate(){
         for (var i = 0; i < es.length; i++) {
             var e = es[i]
             var s = document.createElement("span")
+            var li = document.createElement("li")
+            s.appendChild(li)
 
-            if (e.nextElementSibling) {
-                verb("Editing page sibling")
+            try {
                 var p = e.nextElementSibling.children[0]
-                s.textContent = p.textContent
+                li.textContent = p.textContent
                 e.parentNode.replaceChild(s, p)
+                verb("Edited page sibling")
 
-            } else {
+            } catch(e) {
                 verb("No page sibling")
-                s.textContent = parseInt(e.children[0].textContent) + 1
+                e.children[0].textContent = parseInt(e.children[0].textContent) + 1
                 e.parentNode.appendChild(s)
             }
         }
+
+    } else if (ps.length < 1) {
+        var p = speedcore("ul", { className: "cat-pages" }, [
+            "li", { className: "cat-pageshead", textContent: "Pages:" }, [],
+            "li", {}, [
+            ]
+        ])
 
     } else {
         verb("No current page found")
@@ -248,22 +284,22 @@ function genPost(dom, trs){
 
         } catch(e) {
             tbody().insertBefore(trs[i % 125], lastUserlist())
-        }
 
-        // Add broken events
-        if (i % 5 == 1) {
-            var sps = trs[i % 125].getElementsByClassName("spoiler_toggle")
+            // Add broken events
+            if (i % 5 == 1) {
+                var sps = trs[i % 125].getElementsByClassName("spoiler_toggle")
 
-            if (sps.length > 0)
-                verb("Adding " + sps.length + " spoiler events for post "
-                    + Math.ceil(i / 5) + "..."
-                    )
+                if (sps.length > 0)
+                    verb("Adding " + sps.length + " spoiler events for post "
+                        + Math.ceil(i / 5) + "..."
+                        )
 
-            for (var j = 0; j < sps.length; j++) {
-                sps[j].addEventListener("click", function(){
-                    var s = this.nextElementSibling.style
-                    s.display = s.display == "" ? "none" : ""
-                })
+                for (var j = 0; j < sps.length; j++) {
+                    sps[j].addEventListener("click", function(){
+                        var s = this.nextElementSibling.style
+                        s.display = s.display == "" ? "none" : ""
+                    })
+                }
             }
         }
     }
