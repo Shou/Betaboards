@@ -177,53 +177,6 @@ function tbody(){
 // | Update page numbers at the top/bottom.
 // pagesUpdate :: IO ()
 function pagesUpdate(){
-    var ps = document.getElementsByClassName("cat-pages")
-    var es = []
-
-    verb("Finding current page element...")
-
-    // Only the first two or less "cat-pages" elements.
-    for (var i = 0; i < Math.min(ps.length, 2); i++) {
-        var ns = ps[i].children
-
-        for (var j = 0; j < ns.length; j++) {
-            try {
-                if (ns[j].className === "cat-pagesjump");
-                else if (ns[j].children[0].rel === undefined) es.push(ns[j])
-            } catch(e) {}
-        }
-    }
-
-    if (es.length > 0) {
-        for (var i = 0; i < es.length; i++) {
-            var e = es[i]
-            var s = document.createElement("span")
-            var li = document.createElement("li")
-            s.appendChild(li)
-
-            try {
-                var p = e.nextElementSibling.children[0]
-                li.textContent = p.textContent
-                e.parentNode.replaceChild(s, p)
-                verb("Edited page sibling")
-
-            } catch(e) {
-                verb("No page sibling")
-                e.children[0].textContent = parseInt(e.children[0].textContent) + 1
-                e.parentNode.appendChild(s)
-            }
-        }
-
-    } else if (ps.length < 1) {
-        var p = speedcore("ul", { className: "cat-pages" }, [
-            "li", { className: "cat-pageshead", textContent: "Pages:" }, [],
-            "li", {}, [
-            ]
-        ])
-
-    } else {
-        verb("No current page found")
-    }
 }
 
 // | Get original <tr>s
@@ -307,10 +260,10 @@ function genPost(dom, trs){
 
 // remNextButton :: IO ()
 function remNextButton(){
-    var ns = document.getElementsByClassName("c_next")
-
-    for (var i = 0; i < ns.length; i++)
-        ns.parentNode.parentNode.removeChild(ns.parentNode)
+    var s = document.getElementsByClassName("style")
+    s.textContent = ".c_next { display: none }"
+    // TODO
+    //document.body.appendChild(s)
 }
 
 // getID :: IO Int
