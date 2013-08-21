@@ -13,22 +13,22 @@
 // - Will time and xhr.timeout conflict?
 
 // TODO:
-// - Make userlist update too.
-//      - Done
-// - Update pages counter and remove links to show which replies are shown.
-// - Remove "Next Page" links.
-// - Only replace the contents of updated posts.
+// - Replace the contents of updated posts.
 //      - Group <tr>s in five and compare the contents of the ".c_post"s
+// - Clean up script.
 
 // {{{ Global variables
 
 // | Global timeout variable
 var loop
 // | Global current post page
+// cid :: Int
 var cid = 0
 // | Global init post page
+// iid :: Int
 var iid = 0
 // | Amount of replies last loaded
+// old :: Int
 var old = 0
 // | Global timeout length in milliseconds
 // time :: Int
@@ -94,37 +94,7 @@ function request(url){
     xhr.timeout = 10000
     xhr.onreadystatechange = function(){
         if (xhr.readyState === 4 && xhr.status === 200) {
-            var dom = lastUserlist()
-            var d = insert(xhr.responseText)
-            var xs = focus(d)
-            var trs = init(xs)
-            var us = last(xs)
-
-            verb("Loaded " + Math.round(trs.length / 5) + " replies")
-
-            // There is at least one reply
-            if (trs.length >= 5) {
-                genPost(dom, trs, cid)
-                // Replace old userlist
-                dom.parentNode.replaceChild(us, dom)
-
-                if (trs.length >= 25 * 5) {
-                    // Increment page
-                    cid++
-                    // update pages buttons
-                    pagesUpdate()
-                    // we don't want the reply length from the old page.
-                    old = 0
-                }
-
-                // New replies were found
-                if (old < trs.length) time = 10000
-                old = trs.length
-
-            } else cid--
-
-            d.parentNode.removeChild(d)
-            time = Math.min(160000, time * 1.5)
+            addPosts(xhr.responseText)
         }
 
         else debu(xhr)
@@ -132,6 +102,42 @@ function request(url){
 
     xhr.open("GET", url, true)
     xhr.send()
+}
+
+// addPosts :: String -> IO ()
+function addPosts(html){
+    var dom = lastUserlist()
+    var d = insert(html)
+    var xs = focus(d)
+    var trs = init(xs)
+    var us = last(xs)
+
+    verb("Loaded " + Math.round(trs.length / 5) + " replies")
+
+    // There is at least one reply
+    if (trs.length >= 5) {
+        genPost(dom, trs, cid)
+        // Replace old userlist
+        dom.parentNode.replaceChild(us, dom)
+
+        if (trs.length >= 25 * 5) {
+            // Increment page
+            cid++
+            // update pages buttons
+            pagesUpdate()
+            // we don't want the reply length from the old page.
+            old = 0
+        }
+
+        // New replies were found
+        if (old < trs.length) time = 6667
+        old = trs.length
+
+    } else cid--
+
+    d.parentNode.removeChild(d)
+    time = Math.min(160000, Math.floor(time * 1.5))
+    verb("Set time to " + time)
 }
 
 // | Get the tbody containing post <tr>s
@@ -168,9 +174,9 @@ function pagesUpdate(){
 
             if (e.nextElementSibling) {
                 verb("Editing page sibling")
-                var p = trace(e.nextElementSibling).children[0]
+                var p = e.nextElementSibling.children[0]
                 s.textContent = p.textContent
-                p.parentNode.replaceChild(s, p)
+                e.parentNode.replaceChild(s, p)
 
             } else {
                 verb("No page sibling")
