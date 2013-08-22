@@ -6,13 +6,14 @@
 // @author          Shou
 // @copyright       2013, Shou
 // @license         MIT
+// @updateURL       https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
 // ==/UserScript==
 
 
-// XXX:
+// XXX
 // - Will time and xhr.timeout conflict?
 
-// TODO:
+// TODO
 // - Replace the contents of updated posts.
 //      - Group <tr>s in five and compare the contents of the ".c_post"s
 // - Clean up script.
@@ -22,6 +23,11 @@
 //      - If no ellipsis exists, create it and add the current page number after.
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
+
+// FIXME
+// - Spoiler events should only be added ONCE.
+// - Spoiler tags change the innerHTML, meaning it counts as a post update.
+//      - Strip spoiler style attributes.
 
 // {{{ Global variables
 
@@ -39,6 +45,10 @@ var old = 0
 // | Global timeout length in milliseconds
 // time :: Int
 var time = 10000
+
+// | Is ctrl modifier pressed
+// ctrl :: Bool
+var ctrl = false
 
 // }}}
 
@@ -91,7 +101,7 @@ function last(xs){
 }
 
 // | No more Flydom!
-// speedcore :: String -> Obj -> Tree -> DOMObj
+// speedcore :: String -> Obj -> Tree -> Elem
 function speedcore(tagname, attrs, childs){
     var e = document.createElement(tagname);
     for (k in attrs){
@@ -112,6 +122,7 @@ function speedcore(tagname, attrs, childs){
 
 // }}}
 
+// {{{ XHR
 
 // request :: String -> IO ()
 function request(url){
@@ -129,6 +140,91 @@ function request(url){
     xhr.open("GET", url, true)
     xhr.send()
 }
+
+// reply :: Elem -> IO ()
+function reply(t){
+    verb("Replying...")
+
+    var url = '/' + getForum() + "/post/"
+    var oargs = getPostArgs(t)
+    var args = ""
+    var str = t.value
+
+    for (var k in oargs) args += (k + '=' + oargs[k] + '&')
+
+    args += "post=" + encodeURIComponent(str).replace("%20", "+")
+
+    verb("Posting reply...")
+
+    var xhr = new XMLHttpRequest()
+    xhr.timeout = 10000
+    xhr.onreadystatechange = function(){
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            verb("Replied.")
+            update()
+            t.value = ""
+
+        } else debu(xhr)
+    }
+
+    xhr.open("POST", url, true)
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
+    xhr.send(args)
+}
+
+// }}}
+
+// {{{ DOM Finders
+
+// quickReply :: IO Elem
+function quickReply(){
+    var e = document.getElementById("fast-reply")
+
+    return e.getElementsByTagName("textarea")[0]
+}
+
+// | Get the tbody containing post <tr>s
+// tbody :: IO Elem
+function tbody(){
+    var e = document.getElementById("main").getElementsByClassName("topic")[0]
+
+    return e.children[1]
+}
+
+// | Get original <tr>s
+// inittrs :: IO [Elem]
+function inittrs(){
+    var es = tbody().children
+
+    return init(tail(es))
+}
+
+// | Find the post table rows and return them.
+// focus :: Elem -> IO [Elem]
+function focus(div){
+    var e = div.getElementsByClassName("topic")[0]
+
+    if (e) {
+        var es = e.children[1].children
+
+        return tail(es)
+
+    } else return []
+}
+
+// | Get the class="c_view" element.
+// lastUserlist :: IO Elem
+function lastUserlist(){
+    var fts = document.getElementById("main").getElementsByClassName("c_view")
+    var ft = fts[fts.length - 1]
+    var ftl = ft.parentNode
+
+    return ftl
+}
+
+// }}}
+
+// {{{ DOM Modifiers
 
 // addPosts :: String -> IO ()
 function addPosts(html){
@@ -150,7 +246,7 @@ function addPosts(html){
             // Increment page
             cid++
             // update pages buttons
-            pagesUpdate()
+            //pagesUpdate()
             // we don't want the reply length from the old page.
             old = 0
         }
@@ -166,51 +262,62 @@ function addPosts(html){
     verb("Set time to " + time)
 }
 
-// | Get the tbody containing post <tr>s
-// tbody :: IO ()
-function tbody(){
-    var e = document.getElementById("main").getElementsByClassName("topic")[0]
-
-    return e.children[1]
-}
-
 // | Update page numbers at the top/bottom.
 // pagesUpdate :: IO ()
 function pagesUpdate(){
+    var ps = document.getElementsByClassName("cat-pages")
+    var es = []
+
+    verb("Finding current page element...")
+
+    // Only the first two or less "cat-pages" elements.
+    for (var i = 0; i < Math.min(ps.length, 2); i++) {
+        var ns = ps[i].children
+        var b = false
+
+        for (var j = 0; j < ns.length; j++) {
+            try {
+                if (ns[j].className === "cat-pagesjump") b = true
+                else if (ns[j].children[0].rel === undefined) es.push(ns[j])
+                else if (b) ns[j].parentNode.removeChild(ns[j])
+            } catch(e) {}
+        }
+    }
+
+    if (es.length > 0) {
+        for (var i = 0; i < es.length; i++) {
+            var e = es[i]
+            var s = document.createElement("span")
+            var li = document.createElement("li")
+            s.appendChild(li)
+
+            try {
+                var p = e.nextElementSibling.children[0]
+                li.textContent = p.textContent
+                e.parentNode.replaceChild(s, p)
+                verb("Edited page sibling")
+
+            } catch(e) {
+                verb("No page sibling")
+                // FIXME e.children is undefined
+                e.children[0].textContent = parseInt(e.children[0].textContent) + 1
+                e.parentNode.appendChild(s)
+            }
+        }
+
+    } else if (ps.length < 1) {
+        var p = speedcore("ul", { className: "cat-pages" }, [
+            "li", { className: "cat-pageshead", textContent: "Pages:" }, [],
+            "li", {}, [
+            ]
+        ])
+
+    } else {
+        verb("No current page found")
+    }
 }
 
-// | Get original <tr>s
-// inittrs :: IO Int
-function inittrs(){
-    var es = tbody().children
-
-    return init(tail(es))
-}
-
-// | Find the post table rows and return them.
-// focus :: DOMObj -> IO [DOMObj]
-function focus(div){
-    var e = div.getElementsByClassName("topic")[0]
-
-    if (e) {
-        var es = e.children[1].children
-
-        return tail(es)
-
-    } else return []
-}
-
-// | Get the class="c_view" element.
-// lastUserlist :: IO DOMObj
-function lastUserlist(){
-    var fts = document.getElementById("main").getElementsByClassName("c_view")
-    var ft = fts[fts.length - 1]
-    var ftl = ft.parentNode
-
-    return ftl
-}
-
-// insert :: String -> IO DOMObj
+// insert :: String -> IO Elem
 function insert(html){
     var e = document.createElement("div")
     document.body.appendChild(e)
@@ -219,7 +326,7 @@ function insert(html){
     return e
 }
 
-// genPost :: DOMObj -> [DOMObj] -> IO ()
+// genPost :: Elem -> [Elem] -> IO ()
 function genPost(dom, trs){
     var itrs = inittrs()
     var p = cid - iid
@@ -232,8 +339,33 @@ function genPost(dom, trs){
 
     for (var i = n; i < trs.length + n; i++) {
         try {
+            // Update timestamp
             if (i % 5 == 0) itrs[i].parentNode.replaceChild(trs[i % 125], itrs[i])
-            else itrs[i].parentNode
+            // Update contents of edited posts
+            else if (i % 5 == 1) {
+                var ip = itrs[i].children[1]
+                var tp = trs[i % 125].children[1]
+                var cip = ip.cloneNode(true)
+                var ctp = tp.cloneNode(true)
+
+                var xs = cip.getElementsByClassName("editby")
+                var ys = ctp.getElementsByClassName("editby")
+
+                for (var j = 0; j < xs.length; j++) {
+                    try { ctp.removeChild(xs[j]) }
+                    catch(e) {}
+                    try { cip.removeChild(ys[j]) }
+                    catch(e) {}
+                }
+
+                if (cip.innerHTML !== ctp.innerHTML) {
+                    verb("Updating post " + Math.round(i / 5))
+                    ip.innerHTML = tp.innerHTML
+
+                }
+
+            // Explodes on new elements
+            } else itrs[i].parentNode
 
         } catch(e) {
             tbody().insertBefore(trs[i % 125], lastUserlist())
@@ -266,11 +398,20 @@ function remNextButton(){
     //document.body.appendChild(s)
 }
 
-// getID :: IO Int
-function getID(){
+// }}}
+
+// getPage :: IO Int
+function getPage(){
     var url = window.location.pathname.split('/')
 
     return parseInt(url[url.length - 2])
+}
+
+// getId :: IO String
+function getId(){
+    var url = window.location.pathname.split('/')
+
+    return url[url.length - 3]
 }
 
 // getURL :: IO String
@@ -280,26 +421,75 @@ function getURL(){
     return url + '/' + cid + '/'
 }
 
+// getForum :: IO String
+function getForum(){
+    var url = window.location.pathname.split('/')
+
+    return url[1]
+}
+
+// | Add the initial events.
+// initEvents :: IO ()
+function initEvents(){
+    verb("Making init events...")
+    var qr = quickReply()
+
+    qr.addEventListener("keydown", function(e){
+        if (e.ctrlKey) ctrl = true
+        if (ctrl && e.keyCode === 13) reply(this)
+    })
+    qr.addEventListener("keyup", function(e){
+        if (e.ctrlKey) ctrl = false
+    })
+    qr.nextElementSibling.addEventListener("click", function(e){
+        e.preventDefault()
+        verb("Click")
+        reply(this.previousElementSibling)
+    })
+}
+
+// FIXME find all form elements with "name" and "value" attributes?
+// getPostArgs :: Elem -> IO ()
+function getPostArgs(t){
+    var ts = t.parentNode.parentNode.parentNode.getElementsByTagName("input")
+    var o = {}
+
+    for (var i = 0; i < ts.length; i++)
+        if (ts[i].type === "hidden") o[ts[i].name] = ts[i].value
+
+    o["sd"] = '1'
+
+    return o
+}
+
+// update :: IO ()
+function update(){
+    console.log(cid)
+
+    try {
+        var url = getURL()
+        console.log(url)
+        request(url)
+
+    } catch(e) {
+        debu(e)
+    }
+}
+
 // main :: IO ()
 function main(){
-    iid = getID()
+    iid = getPage()
     cid = iid
     old = inittrs().length
 
-    // Remove next page buttons
-    remNextButton()
+    initEvents()
 
     var f = function(){
-        console.log(cid)
-
-        try {
-            var url = getURL()
-            console.log(url)
-            request(url)
-        } catch(e) {}
+        update()
 
         loop = setTimeout(f, time)
     }
+
     loop = setTimeout(f, time)
 }
 
