@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.0.2
+// @version         0.0.3
 // @include         http*://*.zetaboards.com/*/topic/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -11,12 +11,8 @@
 
 
 // XXX
-// - Will time and xhr.timeout conflict?
 
 // TODO
-// - Replace the contents of updated posts.
-//      - Group <tr>s in five and compare the contents of the ".c_post"s
-// - Clean up script.
 // - Don't add so many pages; use the ellipsis between pages.
 //      - Check if pages exist, if not speedcore them.
 //          - Make first page.
@@ -25,9 +21,6 @@
 //      - If there are pages after the ellipsis' neighbor, remove them.
 
 // FIXME
-// - Spoiler events should only be added ONCE.
-// - Spoiler tags change the innerHTML, meaning it counts as a post update.
-//      - Strip spoiler style attributes.
 
 // {{{ Global variables
 
@@ -98,6 +91,13 @@ function tail(xs){
 // last :: [a] -> a
 function last(xs){
     return xs[xs.length - 1]
+}
+
+// map :: (a -> b) -> [a] -> [b]
+function map(f, xs){
+    var tmp = []
+    for (var i = 0; i < xs.length; i++) tmp.push(f(xs[i]))
+    return tmp
 }
 
 // | No more Flydom!
@@ -358,11 +358,23 @@ function genPost(dom, trs){
                     catch(e) {}
                 }
 
+                var as = cip.getElementsByClassName("spoiler")
+                var bs = ctp.getElementsByClassName("spoiler")
+
+                for (var j = 0; j < as.length; j++) {
+                    try { bs[j].style = "" }
+                    catch(e) {}
+                    try { as[j].style = "" }
+                    catch(e) {}
+                }
+
                 if (cip.innerHTML !== ctp.innerHTML) {
                     verb("Updating post " + Math.round(i / 5))
                     ip.innerHTML = tp.innerHTML
 
                 }
+
+                addSpoilerEvent(ip.parentNode)
 
             // Explodes on new elements
             } else itrs[i].parentNode
@@ -372,19 +384,7 @@ function genPost(dom, trs){
 
             // Add broken events
             if (i % 5 == 1) {
-                var sps = trs[i % 125].getElementsByClassName("spoiler_toggle")
-
-                if (sps.length > 0)
-                    verb("Adding " + sps.length + " spoiler events for post "
-                        + Math.ceil(i / 5) + "..."
-                        )
-
-                for (var j = 0; j < sps.length; j++) {
-                    sps[j].addEventListener("click", function(){
-                        var s = this.nextElementSibling.style
-                        s.display = s.display == "" ? "none" : ""
-                    })
-                }
+                addSpoilerEvent(trs[i % 125])
             }
         }
     }
@@ -392,10 +392,63 @@ function genPost(dom, trs){
 
 // remNextButton :: IO ()
 function remNextButton(){
-    var s = document.getElementsByClassName("style")
-    s.textContent = ".c_next { display: none }"
-    // TODO
-    //document.body.appendChild(s)
+    var ns = document.getElementsByClassName("c_next")
+    map(function(n){ n.parentNode.parentNode.removeChild(n.parentNode) }, ns)
+}
+
+// FIXME find all form elements with "name" and "value" attributes
+// getPostArgs :: Elem -> IO Obj
+function getPostArgs(t){
+    var ts = t.parentNode.parentNode.parentNode.getElementsByTagName("input")
+    var o = {}
+
+    for (var i = 0; i < ts.length; i++)
+        if (ts[i].type === "hidden") o[ts[i].name] = ts[i].value
+
+    o["sd"] = '1'
+
+    return o
+}
+
+// }}}
+
+// {{{ Events
+
+// | Add the initial events.
+// initEvents :: IO ()
+function initEvents(){
+    verb("Making init events...")
+    var qr = quickReply()
+
+    qr.addEventListener("keydown", function(e){
+        if (e.ctrlKey) ctrl = true
+        if (ctrl && e.keyCode === 13) reply(this)
+    })
+    qr.addEventListener("keyup", function(e){
+        if (e.ctrlKey) ctrl = false
+    })
+    qr.nextElementSibling.addEventListener("click", function(e){
+        e.preventDefault()
+        verb("Click")
+        reply(this.previousElementSibling)
+    })
+}
+
+// addSpoilerEvent :: Elem -> IO ()
+function addSpoilerEvent(tr){
+    var sps = tr.getElementsByClassName("spoiler_toggle")
+
+    if (sps.length > 0) {
+        verb("Adding " + sps.length + " spoiler events... ")
+        debu(sps)
+    }
+
+    for (var j = 0; j < sps.length; j++) {
+        sps[j].addEventListener("click", function(){
+            var s = this.nextElementSibling.style
+            s.display = s.display == "" ? "none" : ""
+        })
+    }
 }
 
 // }}}
@@ -428,40 +481,6 @@ function getForum(){
     return url[1]
 }
 
-// | Add the initial events.
-// initEvents :: IO ()
-function initEvents(){
-    verb("Making init events...")
-    var qr = quickReply()
-
-    qr.addEventListener("keydown", function(e){
-        if (e.ctrlKey) ctrl = true
-        if (ctrl && e.keyCode === 13) reply(this)
-    })
-    qr.addEventListener("keyup", function(e){
-        if (e.ctrlKey) ctrl = false
-    })
-    qr.nextElementSibling.addEventListener("click", function(e){
-        e.preventDefault()
-        verb("Click")
-        reply(this.previousElementSibling)
-    })
-}
-
-// FIXME find all form elements with "name" and "value" attributes?
-// getPostArgs :: Elem -> IO ()
-function getPostArgs(t){
-    var ts = t.parentNode.parentNode.parentNode.getElementsByTagName("input")
-    var o = {}
-
-    for (var i = 0; i < ts.length; i++)
-        if (ts[i].type === "hidden") o[ts[i].name] = ts[i].value
-
-    o["sd"] = '1'
-
-    return o
-}
-
 // update :: IO ()
 function update(){
     console.log(cid)
@@ -476,6 +495,7 @@ function update(){
     }
 }
 
+
 // main :: IO ()
 function main(){
     iid = getPage()
@@ -483,6 +503,7 @@ function main(){
     old = inittrs().length
 
     initEvents()
+    remNextButton()
 
     var f = function(){
         update()
