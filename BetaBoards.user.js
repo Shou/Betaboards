@@ -161,7 +161,7 @@ function reply(t){
     xhr.onreadystatechange = function(){
         if (xhr.readyState === 4 && xhr.status === 200) {
             verb("Replied.")
-            update()
+            addPosts(xhr.responseText)
             t.value = ""
 
         } else debu(xhr)
