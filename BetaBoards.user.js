@@ -20,12 +20,11 @@
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
 // - Convenient QR quoting?
-//      - How?!?!
-// - Scroll with loaded replies if at bottom of the page.
-//      - window.scrollBy(x, y)
-//      - elem.scrollHeight
-//      - window.scrollY
-//      - window.innerHeight
+//      - Just text
+// - Floating quick reply
+//      - "Float" / "Unfloat" buttons
+// - Topic updating
+// - Highlight elements that Ctrl affect, i.e. with an aqua coloreod border.
 
 // FIXME
 // - Name/timestamp <tr> loaded at the bottom of the page several times
@@ -59,7 +58,7 @@ var posting = false
 
 // | ID of post to scroll to.
 // scrollid :: String
-var scrollid
+var scrollid = null
 
 // }}}
 
@@ -292,8 +291,13 @@ function addPosts(html){
 
     } else cid--
 
+    // Remove loaded HTML
     d.parentNode.removeChild(d)
+    // Scroll to first new post
     autoScroll(oldscroll, scrollid)
+    // Reset scroll ID
+    scrollid = null
+    // Set time
     time = Math.min(160000, Math.floor(time * 1.5))
     verb("Set time to " + time)
 }
@@ -413,19 +417,22 @@ function genPost(dom, trs){
 
                 }
 
-            // Explodes on new elements
+            // Intentionally explodes on new elements
             } else itrs[i].parentNode
 
         } catch(e) {
             if (i % 5 == 0) {
                 debu(e)
-                scrollid = trs[i % 125].id
+                if (scrollid === null) scrollid = trs[i % 125].id
             }
             tbody().insertBefore(trs[i % 125], lastUserlist())
 
             // Add broken events
             if (i % 5 == 1) {
                 addSpoilerEvent(trs[i % 125])
+
+            } else if (i % 5 == 3) {
+                addQuoteEvent(trs[i % 125])
             }
         }
     }
@@ -492,6 +499,15 @@ function addSpoilerEvent(tr){
             s.display = s.display == "" ? "none" : ""
         })
     }
+}
+
+function addQuoteEvent(tr){
+    var q = tr.children[1].children[1].children[1]
+    q.addEventListener("click", function(e){
+        if (e.button === 0) {
+            
+        }
+    })
 }
 
 // | Scroll to the latest post.
