@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.0.3
+// @version         0.0.4
 // @include         http*://*.zetaboards.com/*/topic/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -19,6 +19,7 @@
 //      - If no ellipsis exists, create it and add the current page number after.
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
+// - Convenient QR quoting.
 
 // FIXME
 
@@ -372,9 +373,9 @@ function genPost(dom, trs){
                     verb("Updating post " + Math.round(i / 5))
                     ip.innerHTML = tp.innerHTML
 
-                }
+                    addSpoilerEvent(ip.parentNode)
 
-                addSpoilerEvent(ip.parentNode)
+                }
 
             // Explodes on new elements
             } else itrs[i].parentNode
