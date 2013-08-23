@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.0.4
+// @version         0.0.5
 // @include         http*://*.zetaboards.com/*/topic/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -19,9 +19,18 @@
 //      - If no ellipsis exists, create it and add the current page number after.
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
-// - Convenient QR quoting.
+// - Convenient QR quoting?
+//      - How?!?!
+// - Scroll with loaded replies if at bottom of the page.
+//      - window.scrollBy(x, y)
+//      - elem.scrollHeight
+//      - window.scrollY
+//      - window.innerHeight
 
 // FIXME
+// - Name/timestamp <tr> loaded at the bottom of the page several times
+//   occasionally.
+// - When a post is deleted, the page will fuck up... maybe.
 
 // {{{ Global variables
 
@@ -43,6 +52,14 @@ var time = 10000
 // | Is ctrl modifier pressed
 // ctrl :: Bool
 var ctrl = false
+
+// | When uploading the post. Work against double posts.
+// posting :: Bool
+var posting = false
+
+// | ID of post to scroll to.
+// scrollid :: String
+var scrollid
 
 // }}}
 
@@ -146,6 +163,8 @@ function request(url){
 function reply(t){
     verb("Replying...")
 
+    posting = true
+
     var url = '/' + getForum() + "/post/"
     var oargs = getPostArgs(t)
     var args = ""
@@ -165,12 +184,20 @@ function reply(t){
             addPosts(xhr.responseText)
             t.value = ""
 
-        } else debu(xhr)
+            posting = false
+
+        } else if (xhr.readyState === 4) posting = false
+
+        else debu(xhr)
     }
 
-    xhr.open("POST", url, true)
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-    xhr.send(args)
+    // Don't post if it's empty.
+    if (str.length > 0) {
+        xhr.open("POST", url, true)
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
+        xhr.send(args)
+
+    } else verb("Empty reply.")
 }
 
 // }}}
@@ -223,12 +250,19 @@ function lastUserlist(){
     return ftl
 }
 
+// postUsername :: Elem -> IO String
+function postUsername(tr){
+    return tr.previousElementSibling.children[0].textContent
+}
+
 // }}}
 
 // {{{ DOM Modifiers
 
 // addPosts :: String -> IO ()
 function addPosts(html){
+    // Scroll height before inserting
+    var oldscroll = document.body.scrollHeight
     var dom = lastUserlist()
     var d = insert(html)
     var xs = focus(d)
@@ -259,6 +293,7 @@ function addPosts(html){
     } else cid--
 
     d.parentNode.removeChild(d)
+    autoScroll(oldscroll, scrollid)
     time = Math.min(160000, Math.floor(time * 1.5))
     verb("Set time to " + time)
 }
@@ -332,6 +367,7 @@ function genPost(dom, trs){
     var itrs = inittrs()
     var p = cid - iid
     var n = p * 125
+
     verb("Adding "
         + Math.round((trs.length + n - itrs.length) / 5)
         + " posts..."
@@ -381,6 +417,10 @@ function genPost(dom, trs){
             } else itrs[i].parentNode
 
         } catch(e) {
+            if (i % 5 == 0) {
+                debu(e)
+                scrollid = trs[i % 125].id
+            }
             tbody().insertBefore(trs[i % 125], lastUserlist())
 
             // Add broken events
@@ -423,7 +463,8 @@ function initEvents(){
 
     qr.addEventListener("keydown", function(e){
         if (e.ctrlKey) ctrl = true
-        if (ctrl && e.keyCode === 13) reply(this)
+        if (ctrl && e.keyCode === 13 && !posting) reply(this)
+        else if (posting) verb("Mutlipost avoided.")
     })
     qr.addEventListener("keyup", function(e){
         if (e.ctrlKey) ctrl = false
@@ -431,7 +472,8 @@ function initEvents(){
     qr.nextElementSibling.addEventListener("click", function(e){
         e.preventDefault()
         verb("Click")
-        reply(this.previousElementSibling)
+        if (!posting) reply(this.previousElementSibling)
+        else verb("Multipost avoided.")
     })
 }
 
@@ -452,7 +494,23 @@ function addSpoilerEvent(tr){
     }
 }
 
+// | Scroll to the latest post.
+// autoScroll :: Int -> String -> IO ()
+function autoScroll(os, id){
+    var scrolled = window.scrollY + window.innerHeight
+    var offset = os - scrolled
+
+
+    if (offset < 500 && id !== undefined) {
+        verb("Scrolling to post " + id)
+        window.location.href = window.location.pathname + '#' + id
+
+    } else if (id === undefined) verb("ID is undefined.")
+}
+
 // }}}
+
+// {{{ Zeta
 
 // getPage :: IO Int
 function getPage(){
@@ -481,6 +539,8 @@ function getForum(){
 
     return url[1]
 }
+
+// }}}
 
 // update :: IO ()
 function update(){
