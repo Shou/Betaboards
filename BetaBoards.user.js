@@ -21,6 +21,7 @@
 //      - If there are pages after the ellipsis' neighbor, remove them.
 // - Convenient QR quoting?
 //      - Just text
+//      - Or more?
 // - Floating quick reply
 //      - "Float" / "Unfloat" buttons
 // - Topic updating
@@ -29,6 +30,7 @@
 // FIXME
 // - Name/timestamp <tr> loaded at the bottom of the page several times
 //   occasionally.
+//      - Seems to have magically fixed itself???
 // - When a post is deleted, the page will fuck up... maybe.
 
 // {{{ Global variables
@@ -135,6 +137,21 @@ function speedcore(tagname, attrs, childs){
         e.appendChild(el);
     }
     return e;
+}
+
+// fromBBCode :: Elem -> String
+function fromBBCode(e){
+    e.innerHTML = e.innerHTML.replace(/<br>/g, "\n")
+//    var is = e.getElementsByTagName("img")
+//    for (var i = 0; i < is.length; i++)
+//        is[i].textContent = "[img]" + is[i].src + "[/img]"
+    return e.textContent
+}
+
+// def :: a -> a -> a
+function def(x, y){
+    if (y) return y
+    else return x
 }
 
 // }}}
@@ -458,6 +475,45 @@ function getPostArgs(t){
     return o
 }
 
+// | Highlight the elements that have actions during Ctrl mode.
+// highlightModeElems :: Bool -> IO ()
+function highlightModeElems(b){
+    verb("Highlighting elements? " + b)
+
+    var s = document.getElementById("beta-style")
+
+    if (s === null) {
+        s = document.createElement("style")
+        s.id = "beta-style"
+    }
+
+    if (b) s.textContent = ".beta-highlight { box-shadow: 0 0 10px #66ccff !important }"
+    else s.textContent = ""
+
+    document.body.appendChild(s)
+}
+
+// toggleFloatingQR :: IO ()
+function toggleFloatingQR(){
+    if (localStorage["beta-floating"]) delete localStorage["beta-floating"]
+    else localStorage["beta-floating"] = '1'
+
+    floatQR()
+}
+
+// floatQR :: IO ()
+function floatQR(){
+    var q = quickReply().parentNode.parentNode
+
+    if (localStorage["beta-floating"]) {
+        q.style.position = "fixed"
+        q.style.width = def("400px", localStorage["beta-fl-width"])
+        q.style.top = def("0px", localStorage["beta-fl-y"])
+        q.style.right = def("0px", localStorage["beta-fl-x"])
+
+    } else q.style = ""
+}
+
 // }}}
 
 // {{{ Events
@@ -468,13 +524,25 @@ function initEvents(){
     verb("Making init events...")
     var qr = quickReply()
 
+    qr.className += " beta-highlight"
+
+    document.body.addEventListener("keydown", function(e){
+        if (e.ctrlKey) {
+            verb("Ctrl true")
+            ctrl = true
+            setTimeout(function(){ highlightModeElems(true) }, 0)
+        }
+    })
+    document.body.addEventListener("keyup", function(e){
+        if (e.ctrlKey) {
+            verb("Ctrl false")
+            ctrl = false
+            setTimeout(function(){ highlightModeElems(false) }, 0)
+        }
+    })
     qr.addEventListener("keydown", function(e){
-        if (e.ctrlKey) ctrl = true
         if (ctrl && e.keyCode === 13 && !posting) reply(this)
         else if (posting) verb("Mutlipost avoided.")
-    })
-    qr.addEventListener("keyup", function(e){
-        if (e.ctrlKey) ctrl = false
     })
     qr.nextElementSibling.addEventListener("click", function(e){
         e.preventDefault()
@@ -482,6 +550,14 @@ function initEvents(){
         if (!posting) reply(this.previousElementSibling)
         else verb("Multipost avoided.")
     })
+    qr.addEventListener("click", function(e){
+        if (e.ctrlKey && e.button === 0) toggleFloatingQR()
+    })
+
+    // Quote events
+    var trs = inittrs()
+    for (var i = 0; i < trs.length; i++)
+        if (i % 5 == 3) addQuoteEvent(trs[i])
 }
 
 // addSpoilerEvent :: Elem -> IO ()
@@ -501,11 +577,43 @@ function addSpoilerEvent(tr){
     }
 }
 
+// addQuoteEvent :: Elem -> IO ()
 function addQuoteEvent(tr){
-    var q = tr.children[1].children[1].children[1]
+    var rs = tr.children[1].children[1].children
+    var q = rs[rs.length - 2]
+    q.className += " beta-highlight"
+
     q.addEventListener("click", function(e){
-        if (e.button === 0) {
-            
+        if (e.ctrlKey && e.button === 0) {
+            e.preventDefault()
+
+            verb("Quick quoting...")
+
+            // tr :: Elem
+            var tr = this.parentNode.parentNode.parentNode
+            var p = tr.previousElementSibling.previousElementSibling
+            var post = p.children[1].cloneNode(true)
+            // u :: String
+            var u = p.previousElementSibling.children[0].textContent.trim()
+
+            // XXX wont this crash and explode if the parentNode of some child
+            //     is already gone
+            var bs = post.getElementsByTagName("blockquote")
+            var cs = post.getElementsByClassName("editby")
+            for (var i = 0; i < bs.length; i++)
+                post.removeChild(bs[i])
+            // > no concat function for HTMLCollection
+            // are u kidding me m8
+            for (var i = 0; i < cs.length; i++)
+                post.removeChild(cs[i])
+
+            // t :: String
+            var t = fromBBCode(post).trim()
+
+            var bbcode = "[quote=" + u + "]" + t + "[/quote]"
+
+            quickReply().value += bbcode
+
         }
     })
 }
@@ -581,6 +689,7 @@ function main(){
 
     initEvents()
     remNextButton()
+    floatQR()
 
     var f = function(){
         update()
