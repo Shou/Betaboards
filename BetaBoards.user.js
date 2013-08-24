@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.0.5
+// @version         0.1
 // @include         http*://*.zetaboards.com/*/topic/*
 // @author          Shou
 // @copyright       2013, Shou
