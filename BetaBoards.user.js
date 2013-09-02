@@ -7,6 +7,7 @@
 // @copyright       2013, Shou
 // @license         MIT
 // @updateURL       https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
+// @downloadURL     https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
 // ==/UserScript==
 
 
@@ -31,7 +32,17 @@
 // - Name/timestamp <tr> loaded at the bottom of the page several times
 //   occasionally.
 //      - Seems to have magically fixed itself???
+//          - Nope, it's still around.
 // - When a post is deleted, the page will fuck up... maybe.
+// - OP gets updated every time.
+//      - Rather, posts with spoilers update.
+//          - Could it be related to the image expanding script? Posts with that
+//            are updated.
+// - Ctrl-mode active when Ctrl-key not held down.
+//      - Disable ctrl-mode on the next key-press.
+// - textfield focus is lost when new replies are loaded.
+//      - Jesus christ this is annoying.
+// - Next page's replies not added when there's only one reply.
 
 // {{{ Global variables
 
@@ -50,9 +61,9 @@ var old = 0
 // time :: Int
 var time = 10000
 
-// | Is ctrl modifier pressed
-// ctrl :: Bool
-var ctrl = false
+// | Is mouse0 pressed
+// mouse0 :: Bool
+var mouse0 = false
 
 // | When uploading the post. Work against double posts.
 // posting :: Bool
@@ -61,6 +72,9 @@ var posting = false
 // | ID of post to scroll to.
 // scrollid :: String
 var scrollid = null
+// | Keep auto-scrolling with the page?
+// ascroll :: Bool
+var ascroll = false
 
 // }}}
 
@@ -280,6 +294,7 @@ function addPosts(html){
     // Scroll height before inserting
     var oldscroll = document.body.scrollHeight
     var dom = lastUserlist()
+    var focused = document.activeElement.name === "post"
     var d = insert(html)
     var xs = focus(d)
     var trs = init(xs)
@@ -310,6 +325,8 @@ function addPosts(html){
 
     // Remove loaded HTML
     d.parentNode.removeChild(d)
+    // Focus textarea
+    if (focused) quickReply().focus()
     // Scroll to first new post
     autoScroll(oldscroll, scrollid)
     // Reset scroll ID
@@ -319,6 +336,7 @@ function addPosts(html){
     verb("Set time to " + time)
 }
 
+// TODO
 // | Update page numbers at the top/bottom.
 // pagesUpdate :: IO ()
 function pagesUpdate(){
@@ -511,7 +529,35 @@ function floatQR(){
         q.style.top = def("0px", localStorage["beta-fl-y"])
         q.style.right = def("0px", localStorage["beta-fl-x"])
 
-    } else q.style = ""
+        q.children[0].style.cursor = "move"
+
+        q.children[0].addEventListener("mousedown", function(e){
+            if (e.button === 0) mouse0 = true
+            document.body.addEventListener("mousemove", moveQR)
+        })
+        document.body.addEventListener("mouseup", function(e){
+            if (e.button === 0) mouse0 = false
+            document.body.removeEventListener("mousemove", moveQR)
+        })
+
+    } else {
+        q.style = ""
+        q.children[0].style = ""
+    }
+}
+
+// moveQR :: Event -> IO ()
+function moveQR(e){
+    var q = quickReply().parentNode.parentNode
+
+    if (e) {
+        localStorage["beta-fl-x"] =
+            def(0, e.screenX - parseInt(localStorage["beta-fl-x"]))
+        localStorage["beta-fl-y"] =
+            def(0, e.screenY - parseInt(localStorage["beta-fl-y"]))
+    }
+    q.style.top = def('0', localStorage["beta-fl-y"]) + "px"
+    q.style.right = def('0', localStorage["beta-fl-x"]) + "px"
 }
 
 // }}}
@@ -529,19 +575,17 @@ function initEvents(){
     document.body.addEventListener("keydown", function(e){
         if (e.ctrlKey) {
             verb("Ctrl true")
-            ctrl = true
             setTimeout(function(){ highlightModeElems(true) }, 0)
         }
     })
     document.body.addEventListener("keyup", function(e){
-        if (e.ctrlKey) {
+        if (e.keyCode === 17 || !e.ctrlKey) {
             verb("Ctrl false")
-            ctrl = false
             setTimeout(function(){ highlightModeElems(false) }, 0)
         }
     })
     qr.addEventListener("keydown", function(e){
-        if (ctrl && e.keyCode === 13 && !posting) reply(this)
+        if (e.ctrlKey && e.keyCode === 13 && !posting) reply(this)
         else if (posting) verb("Mutlipost avoided.")
     })
     qr.nextElementSibling.addEventListener("click", function(e){
@@ -625,8 +669,12 @@ function autoScroll(os, id){
     var offset = os - scrolled
 
 
-    if (offset < 500 && id !== undefined) {
+    if (offset >= 500) ascroll = false
+    else if ((offset < 500 || ascroll) && id !== undefined) {
         verb("Scrolling to post " + id)
+
+        ascroll = true
+
         window.location.href = window.location.pathname + '#' + id
 
     } else if (id === undefined) verb("ID is undefined.")
