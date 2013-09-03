@@ -3,6 +3,7 @@
 // @description     It's just like IRC now
 // @version         0.1
 // @include         http*://*.zetaboards.com/*/topic/*
+// @include         http*://*.zetaboards.com/*/forum/*
 // @author          Shou
 // @copyright       2013, Shou
 // @license         MIT
@@ -20,13 +21,7 @@
 //      - If no ellipsis exists, create it and add the current page number after.
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
-// - Convenient QR quoting?
-//      - Just text
-//      - Or more?
-// - Floating quick reply
-//      - "Float" / "Unfloat" buttons
 // - Topic updating
-// - Highlight elements that Ctrl affect, i.e. with an aqua coloreod border.
 
 // FIXME
 // - Name/timestamp <tr> loaded at the bottom of the page several times
@@ -39,9 +34,7 @@
 //          - Could it be related to the image expanding script? Posts with that
 //            are updated.
 // - Ctrl-mode active when Ctrl-key not held down.
-//      - Disable ctrl-mode on the next key-press.
-// - textfield focus is lost when new replies are loaded.
-//      - Jesus christ this is annoying.
+//      - Fixed????
 // - Next page's replies not added when there's only one reply.
 
 // {{{ Global variables
@@ -173,13 +166,13 @@ function def(x, y){
 // {{{ XHR
 
 // request :: String -> IO ()
-function request(url){
+function request(url, f){
     var xhr = new XMLHttpRequest()
 
     xhr.timeout = 10000
     xhr.onreadystatechange = function(){
         if (xhr.readyState === 4 && xhr.status === 200) {
-            addPosts(xhr.responseText)
+            f(xhr.responseText)
         }
 
         else debu(xhr)
@@ -270,6 +263,14 @@ function focus(div){
     } else return []
 }
 
+// | Find the topics and return their parent.
+// focusThreads :: Elem -> IO Elem
+function focusThreads(div){
+    var e = div.getElementsByClassName("posts")[0]
+
+    return e
+}
+
 // | Get the class="c_view" element.
 // lastUserlist :: IO Elem
 function lastUserlist(){
@@ -333,6 +334,53 @@ function addPosts(html){
     scrollid = null
     // Set time
     time = Math.min(160000, Math.floor(time * 1.5))
+    verb("Set time to " + time)
+}
+
+// addTopics :: String -> IO ()
+function addTopics(html){
+    //var dom = lastUserlist()
+    var d = insert(html)
+    var x = focusThreads(d)
+    var it = document.getElementById("inlinetopic")
+    var old = it.getElementsByClassName("posts")[0]
+
+    var modified = false
+    var olds = old.getElementsByTagName("tr")
+    var xs = x.getElementsByTagName("tr")
+
+    for (var i = 0; i < olds.length; i++) {
+        try {
+            var or = parseInt(olds[i].children[3].textContent.replace(/,/g, ""))
+            var nr = parseInt(xs[i].children[3].textContent.replace(/,/g, ""))
+            var ot = olds[i].children[1].children[1].textContent
+            var nt = xs[i].children[1].children[1].textContent
+
+            if (or !== nr) {
+                modified = true
+                break // down on the floor!!!
+
+            } else if (ot !== nt) {
+                modified = true
+                break
+            }
+
+        } catch(e){ verb(e) }
+    }
+
+    // Remove loaded HTML
+    d.parentNode.removeChild(d)
+
+    // Swap topics
+    it.removeChild(old)
+    it.appendChild(x)
+
+    if (modified) {
+        verb("Threads modified")
+        time = 6667
+
+    } else time = Math.min(160000, Math.floor(time * 1.5))
+
     verb("Set time to " + time)
 }
 
@@ -712,16 +760,43 @@ function getForum(){
     return url[1]
 }
 
+// isForum :: IO Bool
+function isForum(){
+    var url = window.location.pathname.split('/')
+
+    return url[2] === "forum"
+}
+
+
+// isTopic :: IO Bool
+function isTopic(){
+    var url = window.location.pathname.split('/')
+
+    return url[2] === "topic"
+}
+
 // }}}
 
-// update :: IO ()
-function update(){
+// pageUpdate :: IO ()
+function pageUpdate(){
     console.log(cid)
 
     try {
         var url = getURL()
         console.log(url)
-        request(url)
+        request(url, addPosts)
+
+    } catch(e) {
+        debu(e)
+    }
+}
+
+// forumUpdate :: IO ()
+function forumUpdate(){
+    try {
+        var url = window.location.pathname
+        console.log(url)
+        request(url, addTopics)
 
     } catch(e) {
         debu(e)
@@ -731,21 +806,32 @@ function update(){
 
 // main :: IO ()
 function main(){
-    iid = getPage()
-    cid = iid
-    old = inittrs().length
+    if (isTopic()) {
+        iid = getPage()
+        cid = iid
+        old = inittrs().length
 
-    initEvents()
-    remNextButton()
-    floatQR()
+        initEvents()
+        remNextButton()
+        floatQR()
 
-    var f = function(){
-        update()
+        var f = function(){
+            pageUpdate()
+
+            loop = setTimeout(f, time)
+        }
+
+        loop = setTimeout(f, time)
+
+    } else if (isForum()) {
+        var f = function(){
+            forumUpdate()
+
+            loop = setTimeout(f, time)
+        }
 
         loop = setTimeout(f, time)
     }
-
-    loop = setTimeout(f, time)
 }
 
 main()
