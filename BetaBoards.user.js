@@ -339,11 +339,12 @@ function addPosts(html){
 
 // addTopics :: String -> IO ()
 function addTopics(html){
-    //var dom = lastUserlist()
+    var dom = lastUserlist()
     var d = insert(html)
     var x = focusThreads(d)
     var it = document.getElementById("inlinetopic")
     var old = it.getElementsByClassName("posts")[0]
+    var us = d.getElementsByClassName("c_view")[0].parentNode
 
     var modified = false
     var olds = old.getElementsByTagName("tr")
@@ -374,6 +375,9 @@ function addTopics(html){
     // Swap topics
     it.removeChild(old)
     it.appendChild(x)
+
+    // Update userlist
+    dom.parentNode.replaceChild(us, dom)
 
     if (modified) {
         verb("Threads modified")
