@@ -36,6 +36,7 @@
 // - Ctrl-mode active when Ctrl-key not held down.
 //      - Fixed????
 // - Next page's replies not added when there's only one reply.
+// - ciid is -1 and apparently -5 posts are added when it should be 5
 
 // {{{ Global variables
 
@@ -578,8 +579,7 @@ function floatQR(){
     if (localStorage["beta-floating"]) {
         q.style.position = "fixed"
         q.style.width = def("400px", localStorage["beta-fl-width"])
-        q.style.top = def("0px", localStorage["beta-fl-y"])
-        q.style.right = def("0px", localStorage["beta-fl-x"])
+        moveQR()
 
         q.children[0].style.cursor = "move"
 
@@ -600,16 +600,25 @@ function floatQR(){
 
 // moveQR :: Event -> IO ()
 function moveQR(e){
+    verb("Moving QR...")
     var q = quickReply().parentNode.parentNode
 
     if (e) {
+
         localStorage["beta-fl-x"] =
-            def(0, e.screenX - parseInt(localStorage["beta-fl-x"]))
+            def(0, Math.max(e.screenX - q.scrollWidth / 2, 0))
         localStorage["beta-fl-y"] =
-            def(0, e.screenY - parseInt(localStorage["beta-fl-y"]))
+            def(0, Math.max(e.screenY - q.scrollHeight / 2, 0))
     }
-    q.style.top = def('0', localStorage["beta-fl-y"]) + "px"
-    q.style.right = def('0', localStorage["beta-fl-x"]) + "px"
+
+    q.style.top = Math.min(
+          def(0, parseInt(localStorage["beta-fl-y"]))
+        , window.innerHeight - q.scrollHeight
+    ) + "px"
+    q.style.left = Math.min(
+          def(0, parseInt(localStorage["beta-fl-x"]))
+        , window.innerWidth - q.scrollWidth
+    ) + "px"
 }
 
 // }}}
