@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.2.1
+// @version         0.3
 // @include         http*://*.zetaboards.com/*/topic/*
 // @include         http*://*.zetaboards.com/*/forum/*
 // @author          Shou
@@ -13,6 +13,8 @@
 
 
 // XXX
+// - On document.body 'mouseenter', check if mouse button is still down for
+//   the dragging
 
 // TODO
 // - Don't add so many pages; use the ellipsis between pages.
@@ -21,7 +23,6 @@
 //      - If no ellipsis exists, create it and add the current page number after.
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
-// - Topic updating
 
 // FIXME
 // - Name/timestamp <tr> loaded at the bottom of the page several times
