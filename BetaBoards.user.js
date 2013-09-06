@@ -38,6 +38,7 @@
 //      - Fixed????
 // - Next page's replies not added when there's only one reply.
 // - ciid is -1 and apparently -5 posts are added when it should be 5
+// - Pseudo-quoting doesn't keep bold, italic, spoilers, etc
 
 // {{{ Global variables
 
@@ -612,14 +613,14 @@ function moveQR(e){
             def(0, Math.max(e.screenY - q.scrollHeight / 2, 0))
     }
 
-    q.style.top = Math.min(
+    q.style.top = Math.max(0, Math.min(
           def(0, parseInt(localStorage["beta-fl-y"]))
         , window.innerHeight - q.scrollHeight
-    ) + "px"
-    q.style.left = Math.min(
+    )) + "px"
+    q.style.left = Math.max(0, Math.min(
           def(0, parseInt(localStorage["beta-fl-x"]))
         , window.innerWidth - q.scrollWidth
-    ) + "px"
+    )) + "px"
 }
 
 // }}}
