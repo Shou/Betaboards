@@ -2,8 +2,7 @@
 // @name            BetaBoards
 // @description     It's just like IRC now
 // @version         0.3.1
-// @include         http*://*.zetaboards.com/*/topic/*
-// @include         http*://*.zetaboards.com/*/forum/*
+// @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
 // @license         MIT
@@ -36,9 +35,12 @@
 //            are updated.
 // - Ctrl-mode active when Ctrl-key not held down.
 //      - Fixed????
-// - Next page's replies not added when there's only one reply.
+// - Next page's replies not added when there's only one reply??
 // - ciid is -1 and apparently -5 posts are added when it should be 5
 // - Pseudo-quoting doesn't keep bold, italic, spoilers, etc
+//      - Attached files are quoted.
+// - `lastUserlist' disappears after `genPost' which probably means that a <tr>
+//   is overwriting it or something.
 
 // {{{ Global variables
 
@@ -307,10 +309,12 @@ function addPosts(html){
     verb("Loaded " + Math.round(trs.length / 5) + " replies")
 
     // There is at least one reply
+    try {
     if (trs.length >= 5) {
+        var p = dom.parentNode
         genPost(dom, trs, cid)
         // Replace old userlist
-        dom.parentNode.replaceChild(us, dom)
+        p.replaceChild(us, dom)
 
         if (trs.length >= 25 * 5) {
             // Increment page
@@ -326,6 +330,8 @@ function addPosts(html){
         old = trs.length
 
     } else cid--
+
+    } catch(e){ debu(e) }
 
     // Remove loaded HTML
     d.parentNode.removeChild(d)
@@ -818,6 +824,17 @@ function forumUpdate(){
     }
 }
 
+// style :: IO ()
+function style(){
+    var e = document.createElement("style")
+    e.innerHTML = ".ignored { display: none !important }"
+
+    verb("Styling... ?")
+    document.body.appendChild(e)
+}
+
+// XXX remove
+//style()
 
 // main :: IO ()
 function main(){
