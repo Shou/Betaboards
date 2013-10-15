@@ -968,7 +968,7 @@ function ignoreUI(){
                              , style: "width: 100%"
                              }, []
                 ],
-                "td", { textContent: "Comma separated, no spaces" }, []
+                "td", { textContent: "Comma separated" }, []
             ],
             "tr", { title: "Specific posts by their post contents" }, [
                 "td", { className: "c_desc", textContent: "Post contents" }, [],
@@ -978,7 +978,7 @@ function ignoreUI(){
                              , style: "width: 100%"
                              }, []
                 ],
-                "td", { textContent: "Comma separated, no spaces" }, []
+                "td", { textContent: "Comma separated" }, []
             ],
             "tr", { title: "Username links everywhere" }, [
                 "td", { className: "c_desc", textContent: "Global member IDs" }, [],
@@ -988,7 +988,7 @@ function ignoreUI(){
                              , style: "width: 100%"
                              }, []
                 ],
-                "td", { textContent: "Comma separated, no spaces" }, []
+                "td", { textContent: "Comma separated" }, []
             ]
         ]
     ])
