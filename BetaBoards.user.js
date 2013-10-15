@@ -11,6 +11,8 @@
 // ==/UserScript==
 
 
+// ! cp % ~/.mozilla/firefox/*.Hatate/gm_scripts/BetaBoards/
+
 // XXX
 // - On document.body 'mouseenter', check if mouse button is still down for
 //   the dragging
@@ -291,6 +293,16 @@ function postUsername(tr){
     return tr.previousElementSibling.children[0].textContent
 }
 
+// usernames :: IO [Elem]
+function usernames(){
+    return document.getElementsByClassName("c_username")
+}
+
+// usernamePost :: Elem -> IO Elem
+function usernamePost(e){
+    return e.parentNode.nextElementSibling.children[1]
+}
+
 // }}}
 
 // {{{ DOM Modifiers
@@ -343,6 +355,8 @@ function addPosts(html){
     scrollid = null
     // Set time
     time = Math.min(160000, Math.floor(time * 1.5))
+    // ignore!
+    ignore()
     verb("Set time to " + time)
 }
 
@@ -796,6 +810,14 @@ function isTopic(){
     return url[2] === "topic"
 }
 
+// isHome :: IO Bool
+function isHome(){
+    var url = window.location.pathname.split('/')
+
+    verb("isHome: " + url[2] === "home")
+    return url[2] === "home"
+}
+
 // }}}
 
 // pageUpdate :: IO ()
@@ -826,18 +848,159 @@ function forumUpdate(){
 
 // style :: IO ()
 function style(){
+    verb("Styling...")
     var e = document.createElement("style")
-    e.innerHTML = ".ignored { display: none !important }"
+    var css = ""
+    var csss = []
 
-    verb("Styling... ?")
+    var ids = []
+    try { ids = JSON.parse(localStorage['beta-memberids']) }
+    catch(e) { debu(e) }
+
+    for (var i = 0; i < ids.length; i++)
+        csss.push("a[href*=\"" + ids[i] + "\"]")
+
+    css = csss.join(',')
+    css += " { display: none !important }"
+    e.innerHTML = css
+
     document.body.appendChild(e)
 }
 
-// XXX remove
-//style()
+// ignoredUsers :: IO [String]
+function ignoredUsers(){
+    try {
+        return JSON.parse(localStorage['beta-ignoredusers'])
+
+    } catch(e){
+        debu(e)
+        return []
+    }
+}
+
+// ignoredPosts :: IO Regex
+function ignoredPosts(){
+    var ms = []
+    var re = ""
+
+    try {
+        ms = JSON.parse(localStorage['beta-ignoredposts'])
+    } catch(e){
+        debu(e)
+    }
+
+    for (var i = 0; i < ms.length; i++){
+        re += "" + ms[i] + ""
+        if (i < ms.length - 1) re += '|'
+    }
+
+    verb(re)
+
+    if (re.length > 0) return new RegExp(re, "i")
+    else return new RegExp(null, "i")
+}
+
+// ignore :: IO ()
+function ignore(){
+    verb("Ignoring...")
+    var us = usernames()
+
+    for (var i = 0; i < us.length; i++){
+        var uname = us[i].children[0].textContent
+        var users = ignoredUsers()
+        var posts = ignoredPosts()
+
+        try {
+            if (users.indexOf(uname) !== -1){
+                verb("Ignoring " + uname)
+                var e = us[i].parentNode
+                e.style.display = "none"
+                e.nextElementSibling.style.display = "none"
+                e.nextElementSibling.nextElementSibling.style.display = "none"
+                e.nextElementSibling.nextElementSibling.nextElementSibling.style.display = "none"
+
+            } else if (usernamePost(us[i]).textContent.match(posts)) {
+                verb("Ignoring post of " + uname)
+                var e = us[i].parentNode
+                e.style.display = "none"
+                e.nextElementSibling.style.display = "none"
+                e.nextElementSibling.nextElementSibling.style.display = "none"
+                e.nextElementSibling.nextElementSibling.nextElementSibling.style.display = "none"
+            }
+
+        } catch(e) {
+            debu(e)
+        }
+    }
+}
+
+// ignoreUI :: IO ()
+function ignoreUI(){
+    verb("Creating ignore UI...")
+    var main = document.getElementById("main")
+
+    var users = ""
+    try { users = JSON.parse(localStorage['beta-ignoredusers']).join(',')
+    } catch(e) { debu(e) }
+    var posts = ""
+    try { posts = JSON.parse(localStorage['beta-ignoredposts']).join(',')
+    } catch(e) { debu(e) }
+    var meids = ""
+    try { meids = JSON.parse(localStorage['beta-memberids']).join(',')
+    } catch(e) { debu(e) }
+
+    var modify = function(k){ return function(){
+        localStorage[k] = JSON.stringify(this.value.split(','))
+    }}
+
+    var ui = speedcore("table", {}, [
+        "thead", {}, [
+            "tr", {}, [
+                "th", { colSpan: "3", textContent: "Ignore users" }, []
+            ]
+        ],
+        "tbody", {}, [
+            "tr", { title: "All of a user's posts by their usernames" }, [
+                "td", { className: "c_desc", textContent: "Users" }, [],
+                "td", {}, [
+                    "input", { value: users
+                             , onchange: modify('beta-ignoredusers')
+                             , style: "width: 100%"
+                             }, []
+                ],
+                "td", { textContent: "Comma separated, no spaces" }, []
+            ],
+            "tr", { title: "Specific posts by their post contents" }, [
+                "td", { className: "c_desc", textContent: "Post contents" }, [],
+                "td", {}, [
+                    "input", { value: posts
+                             , onchange: modify('beta-ignoredposts')
+                             , style: "width: 100%"
+                             }, []
+                ],
+                "td", { textContent: "Comma separated, no spaces" }, []
+            ],
+            "tr", { title: "Username links everywhere" }, [
+                "td", { className: "c_desc", textContent: "Global member IDs" }, [],
+                "td", {}, [
+                    "input", { value: meids
+                             , onchange: modify('beta-memberids')
+                             , style: "width: 100%"
+                             }, []
+                ],
+                "td", { textContent: "Comma separated, no spaces" }, []
+            ]
+        ]
+    ])
+
+    main.appendChild(ui)
+}
+
 
 // main :: IO ()
 function main(){
+    verb("BetaBoards!")
+
     if (isTopic()) {
         iid = getPage()
         cid = iid
@@ -846,6 +1009,8 @@ function main(){
         initEvents()
         remNextButton()
         floatQR()
+
+        ignore()
 
         var f = function(){
             pageUpdate()
@@ -863,7 +1028,12 @@ function main(){
         }
 
         loop = setTimeout(f, time)
+
+    } else if (isHome()) {
+        ignoreUI()
+
     }
+    style()
 }
 
 main()
