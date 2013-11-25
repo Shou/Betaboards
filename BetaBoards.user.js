@@ -822,27 +822,35 @@ function isHome(){
 
 // pageUpdate :: IO ()
 function pageUpdate(){
-    console.log(cid)
+    var b = readify('beta-updating', false)
 
-    try {
-        var url = getURL()
-        console.log(url)
-        request(url, addPosts)
+    if (! b) {
+        console.log(cid)
 
-    } catch(e) {
-        debu(e)
+        try {
+            var url = getURL()
+            console.log(url)
+            request(url, addPosts)
+
+        } catch(e) {
+            debu(e)
+        }
     }
 }
 
 // forumUpdate :: IO ()
 function forumUpdate(){
-    try {
-        var url = window.location.pathname
-        console.log(url)
-        request(url, addTopics)
+    var b = readify('beta-refreshing', false)
 
-    } catch(e) {
-        debu(e)
+    if (! b) {
+        try {
+            var url = window.location.pathname
+            console.log(url)
+            request(url, addTopics)
+
+        } catch(e) {
+            debu(e)
+        }
     }
 }
 
@@ -890,7 +898,7 @@ function ignoredPosts(){
     }
 
     for (var i = 0; i < ms.length; i++){
-        re += "" + ms[i] + ""
+        re += "(^|[^-a-zA-Z0-9])" + ms[i] + "($|[^-a-zA-Z0-9])"
         if (i < ms.length - 1) re += '|'
     }
 
@@ -902,56 +910,111 @@ function ignoredPosts(){
 
 // ignore :: IO ()
 function ignore(){
-    verb("Ignoring...")
-    var us = usernames()
+    var b = readify('beta-ignoring', false)
 
-    for (var i = 0; i < us.length; i++){
-        var uname = us[i].children[0].textContent
-        var users = ignoredUsers()
-        var posts = ignoredPosts()
+    if (! b) {
+        verb("Ignoring...")
+        var us = usernames()
 
-        try {
-            if (users.indexOf(uname) !== -1){
-                verb("Ignoring " + uname)
-                var e = us[i].parentNode
-                e.style.display = "none"
-                e.nextElementSibling.style.display = "none"
-                e.nextElementSibling.nextElementSibling.style.display = "none"
-                e.nextElementSibling.nextElementSibling.nextElementSibling.style.display = "none"
+        for (var i = 0; i < us.length; i++){
+            var uname = us[i].children[0].textContent
+            var users = ignoredUsers()
+            var posts = ignoredPosts()
 
-            } else if (usernamePost(us[i]).textContent.match(posts)) {
-                verb("Ignoring post of " + uname)
-                var e = us[i].parentNode
-                e.style.display = "none"
-                e.nextElementSibling.style.display = "none"
-                e.nextElementSibling.nextElementSibling.style.display = "none"
-                e.nextElementSibling.nextElementSibling.nextElementSibling.style.display = "none"
+            try {
+                if (users.indexOf(uname) !== -1){
+                    verb("Ignoring " + uname)
+                    var e = us[i].parentNode
+                    e.style.display = "none"
+                    e.nextElementSibling.style.display = "none"
+                    e.nextElementSibling.nextElementSibling.style.display = "none"
+                    e.nextElementSibling.nextElementSibling.nextElementSibling.style.display = "none"
+
+                } else if (usernamePost(us[i]).textContent.match(posts)) {
+                    verb("Ignoring post of " + uname)
+                    var e = us[i].parentNode
+                    e.style.display = "none"
+                    e.nextElementSibling.style.display = "none"
+                    e.nextElementSibling.nextElementSibling.style.display = "none"
+                    e.nextElementSibling.nextElementSibling.nextElementSibling.style.display = "none"
+                }
+
+            } catch(e) {
+                debu(e)
             }
-
-        } catch(e) {
-            debu(e)
         }
     }
+}
+
+// modifiy :: String -> (IO ())
+function modify(k){ return function(){
+    localStorage[k] = JSON.stringify(this.value.split(','))
+}}
+
+// readify :: String -> [a]
+function readify(k, a){
+    try { return JSON.parse(localStorage[k])
+    } catch(e) {
+        debu(e)
+        return a
+    }
+}
+
+// togglify :: IO ()
+function togglify(k){ return function(){
+    if (this.checked) localStorage[k] = this.checked
+    else delete localStorage[k]
+}}
+
+// optionsUI :: IO ()
+function optionsUI(){
+    verb("Creating options UI...")
+    var main = document.getElementById("main")
+
+    var ui = speedcore("table", {}, [
+        "thead", {}, [
+            "tr", {}, [
+                "th", { colSpan: "3", textContent: "Settings" }, []
+            ]
+        ],
+        "tbody", {}, [
+            "tr", {}, [
+                "td", { className: "c_desc", textContent: "Disable reply loading" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify('beta-loading', false)
+                             , onchange: togglify('beta-loading')
+                             }, []
+                ]
+            ],
+            "tr", {}, [
+                "td", { className: "c_desc", textContent: "Disable topic refreshing" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify('beta-refreshing', false)
+                             , onchange: togglify('beta-refreshing')
+                             }, []
+                ]
+            ],
+            "tr", {}, [
+                "td", { className: "c_desc", textContent: "Disable ignoring" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify('beta-ignoring', false)
+                             , onchange: togglify('beta-ignoring')
+                             }, []
+                ]
+            ]
+        ]
+    ])
+
+    main.appendChild(ui)
 }
 
 // ignoreUI :: IO ()
 function ignoreUI(){
     verb("Creating ignore UI...")
     var main = document.getElementById("main")
-
-    var users = ""
-    try { users = JSON.parse(localStorage['beta-ignoredusers']).join(',')
-    } catch(e) { debu(e) }
-    var posts = ""
-    try { posts = JSON.parse(localStorage['beta-ignoredposts']).join(',')
-    } catch(e) { debu(e) }
-    var meids = ""
-    try { meids = JSON.parse(localStorage['beta-memberids']).join(',')
-    } catch(e) { debu(e) }
-
-    var modify = function(k){ return function(){
-        localStorage[k] = JSON.stringify(this.value.split(','))
-    }}
 
     var ui = speedcore("table", {}, [
         "thead", {}, [
@@ -963,7 +1026,7 @@ function ignoreUI(){
             "tr", { title: "All of a user's posts by their usernames" }, [
                 "td", { className: "c_desc", textContent: "Users" }, [],
                 "td", {}, [
-                    "input", { value: users
+                    "input", { value: readify('beta-ignoredusers', []).join(',')
                              , onchange: modify('beta-ignoredusers')
                              , style: "width: 100%"
                              }, []
@@ -973,7 +1036,7 @@ function ignoreUI(){
             "tr", { title: "Specific posts by their post contents" }, [
                 "td", { className: "c_desc", textContent: "Post contents" }, [],
                 "td", {}, [
-                    "input", { value: posts
+                    "input", { value: readify('beta-ignoredposts', []).join(',')
                              , onchange: modify('beta-ignoredposts')
                              , style: "width: 100%"
                              }, []
@@ -983,7 +1046,7 @@ function ignoreUI(){
             "tr", { title: "Username links everywhere" }, [
                 "td", { className: "c_desc", textContent: "Global member IDs" }, [],
                 "td", {}, [
-                    "input", { value: meids
+                    "input", { value: readify('beta-memberids', []).join(',')
                              , onchange: modify('beta-memberids')
                              , style: "width: 100%"
                              }, []
@@ -1030,9 +1093,11 @@ function main(){
         loop = setTimeout(f, time)
 
     } else if (isHome()) {
+        optionsUI()
         ignoreUI()
 
     }
+
     style()
 }
 
