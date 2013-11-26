@@ -898,7 +898,7 @@ function ignoredPosts(){
     }
 
     for (var i = 0; i < ms.length; i++){
-        re += "(^|[^-a-zA-Z0-9])" + ms[i] + "($|[^-a-zA-Z0-9])"
+        re += "" + ms[i] + ""
         if (i < ms.length - 1) re += '|'
     }
 
