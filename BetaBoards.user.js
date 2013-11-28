@@ -357,6 +357,9 @@ function addPosts(html){
     time = Math.min(160000, Math.floor(time * 1.5))
     // ignore!
     ignore()
+    // Remove post numbers!
+    postNums()
+
     verb("Set time to " + time)
 }
 
@@ -554,6 +557,20 @@ function remNextButton(){
     map(function(n){ n.parentNode.parentNode.removeChild(n.parentNode) }, ns)
 }
 
+// postNums :: IO ()
+function postNums(){
+    if (readify('beta-postnums', false)) {
+        var rs = document.getElementsByClassName("right")
+
+        for (var i = 0; i < rs.length; i++) {
+            debu("Post nums! " + i)
+            try {
+            rs[i].children[0].textContent = "Post link"
+            } catch(e) { debu(e) }
+        }
+    }
+}
+
 // FIXME find all form elements with "name" and "value" attributes
 // getPostArgs :: Elem -> IO Obj
 function getPostArgs(t){
@@ -573,17 +590,31 @@ function getPostArgs(t){
 function highlightModeElems(b){
     verb("Highlighting elements? " + b)
 
-    var s = document.getElementById("beta-style")
+    var s = document.getElementById("beta-style-highlight")
 
     if (s === null) {
         s = document.createElement("style")
-        s.id = "beta-style"
+        s.id = "beta-style-highlight"
     }
 
-    if (b) s.textContent = ".beta-highlight { box-shadow: 0 0 10px #66ccff !important }"
+    if (b) s.textContent =
+        ".beta-highlight { box-shadow: 0 0 10px #66ccff !important }"
+
     else s.textContent = ""
 
     document.body.appendChild(s)
+}
+
+function hideUserlists(){
+    if (readify('beta-userlist', false)) {
+        debu("Hiding userlists!")
+        var s = document.createElement("style")
+        s.id = "beta-style-userlist"
+
+        s.textContent = ".c_view-list { display: none !important } "
+
+        document.body.appendChild(s)
+    }
 }
 
 // toggleFloatingQR :: IO ()
@@ -1004,6 +1035,24 @@ function optionsUI(){
                              , onchange: togglify('beta-ignoring')
                              }, []
                 ]
+            ],
+            "tr", {}, [
+                "td", { className: "c_desc", textContent: "Hide post numbers" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify('beta-postnums', false)
+                             , onchange: togglify('beta-postnums')
+                             }, []
+                ]
+            ],
+            "tr", {}, [
+                "td", { className: "c_desc", textContent: "Hide userlist" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify('beta-userlist', false)
+                             , onchange: togglify('beta-userlist')
+                             }, []
+                ]
             ]
         ]
     ])
@@ -1071,7 +1120,9 @@ function main(){
 
         initEvents()
         remNextButton()
+        postNums()
         floatQR()
+        hideUserlists()
 
         ignore()
 
@@ -1084,6 +1135,8 @@ function main(){
         loop = setTimeout(f, time)
 
     } else if (isForum()) {
+        hideUserlists()
+
         var f = function(){
             forumUpdate()
 
