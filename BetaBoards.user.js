@@ -560,12 +560,12 @@ function remNextButton(){
 // postNums :: IO ()
 function postNums(){
     if (readify('beta-postnums', false)) {
-        var rs = document.getElementsByClassName("right")
+        var rs = document.getElementsByClassName("c_postinfo")
 
         for (var i = 0; i < rs.length; i++) {
             debu("Post nums! " + i)
             try {
-            rs[i].children[0].textContent = "Post link"
+            rs[i].children[1].children[0].textContent = "Post link"
             } catch(e) { debu(e) }
         }
     }
