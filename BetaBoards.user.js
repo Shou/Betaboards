@@ -1,3 +1,4 @@
+
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
@@ -43,6 +44,7 @@
 //      - Attached files are quoted.
 // - `lastUserlist' disappears after `genPost' which probably means that a <tr>
 //   is overwriting it or something.
+// - Background repeat applied even with no-repeat
 
 // {{{ Global variables
 
@@ -156,14 +158,21 @@ function speedcore(tagname, attrs, childs){
 // fromBBCode :: Elem -> String
 function fromBBCode(e){
     e.innerHTML = e.innerHTML.replace(/<br>/g, "\n")
-//    var is = e.getElementsByTagName("img")
-//    for (var i = 0; i < is.length; i++)
-//        is[i].textContent = "[img]" + is[i].src + "[/img]"
+    var is = e.getElementsByTagName("img")
+    for (var i = 0; i < is.length; i++)
+        is[i].textContent = "[img]" + is[i].src + "[/img]"
+    var ss = e.getElementsByClassName("spoiler")
+    for (var i = 0; i < ss.length; i++) {
+        ss[i].previousElementSibling.textContent =
+            "[spoiler=" + ss[i].previousElementSibling.textContent + "]"
+        ss[i].textContent = ss[i].textContent + "[/spoiler]"
+    }
+
     return e.textContent
 }
 
 // def :: a -> a -> a
-function def(x, y){
+function def(x, y) {
     if (y) return y
     else return x
 }
@@ -173,7 +182,7 @@ function def(x, y){
 // {{{ XHR
 
 // request :: String -> IO ()
-function request(url, f){
+function request(url, f) {
     var xhr = new XMLHttpRequest()
 
     xhr.timeout = 10000
@@ -190,7 +199,7 @@ function request(url, f){
 }
 
 // reply :: Elem -> IO ()
-function reply(t){
+function reply(t) {
     verb("Replying...")
 
     posting = true
@@ -563,7 +572,6 @@ function postNums(){
         var rs = document.getElementsByClassName("c_postinfo")
 
         for (var i = 0; i < rs.length; i++) {
-            debu("Post nums! " + i)
             try {
             rs[i].children[1].children[0].textContent = "Post link"
             } catch(e) { debu(e) }
