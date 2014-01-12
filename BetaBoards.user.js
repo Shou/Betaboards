@@ -983,7 +983,7 @@ function ignoredPosts(){
     verb(re)
 
     if (re.length > 0) return new RegExp(re, "i")
-    else return new RegExp(null, "i")
+    else return null
 }
 
 // ignore :: IO ()
@@ -998,8 +998,6 @@ function ignore(){
             var uname = us[i].children[0].textContent
             var users = ignoredUsers()
             var posts = ignoredPosts()
-
-            console.log("Ignored posts?? " + posts.toString())
 
             try {
                 if (users.indexOf(uname) !== -1){
