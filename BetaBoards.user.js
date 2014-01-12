@@ -972,7 +972,7 @@ function ignoredPosts(){
     try {
         ms = JSON.parse(localStorage['beta-ignoredposts'])
     } catch(e){
-        debu(e)
+        debu(e.toString())
     }
 
     for (var i = 0; i < ms.length; i++){
@@ -999,6 +999,8 @@ function ignore(){
             var users = ignoredUsers()
             var posts = ignoredPosts()
 
+            console.log("Ignored posts?? " + posts.toString())
+
             try {
                 if (users.indexOf(uname) !== -1){
                     verb("Ignoring " + uname)
@@ -1018,7 +1020,7 @@ function ignore(){
                 }
 
             } catch(e) {
-                debu(e)
+                debu(e.toString())
             }
         }
     }
