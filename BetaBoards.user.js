@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.4.5
+// @version         0.4.6
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -1008,7 +1008,8 @@ function ignore(){
                     e.nextElementSibling.nextElementSibling.style.display = "none"
                     e.nextElementSibling.nextElementSibling.nextElementSibling.style.display = "none"
 
-                } else if (usernamePost(us[i]).textContent.match(posts)) {
+                } else if (posts !== null
+                       && usernamePost(us[i]).textContent.match(posts)) {
                     verb("Ignoring post of " + uname)
                     var e = us[i].parentNode
                     e.style.display = "none"
