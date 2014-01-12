@@ -108,7 +108,7 @@ function trace(x){
 
 // | All but the last element of a list.
 // init :: [a] -> [a]
-function init(xs){
+function init(xs) {
     var tmp = []
     for (var i = 0; i < xs.length - 1; i++) tmp.push(xs[i])
     return tmp
@@ -116,7 +116,7 @@ function init(xs){
 
 // | All but the first element of a list.
 // tail :: [a] -> [a]
-function tail(xs){
+function tail(xs) {
     var tmp = []
     for (var i = 1; i < xs.length; i++) tmp.push(xs[i])
     return tmp
@@ -124,12 +124,12 @@ function tail(xs){
 
 // | Last element of a list.
 // last :: [a] -> a
-function last(xs){
+function last(xs) {
     return xs[xs.length - 1]
 }
 
 // map :: (a -> b) -> [a] -> [b]
-function map(f, xs){
+function map(f, xs) {
     var tmp = []
     for (var i = 0; i < xs.length; i++) tmp.push(f(xs[i]))
     return tmp
@@ -137,7 +137,7 @@ function map(f, xs){
 
 // | No more Flydom!
 // speedcore :: String -> Obj -> Tree -> Elem
-function speedcore(tagname, attrs, childs){
+function speedcore(tagname, attrs, childs) {
     var e = document.createElement(tagname);
     for (k in attrs){
         if (typeof attrs[k] === "object")
@@ -152,20 +152,57 @@ function speedcore(tagname, attrs, childs){
                           );
         e.appendChild(el);
     }
+
     return e;
 }
 
 // fromBBCode :: Elem -> String
-function fromBBCode(e){
+function fromBBCode(e) {
     e.innerHTML = e.innerHTML.replace(/<br>/g, "\n")
-    var is = e.getElementsByTagName("img")
-    for (var i = 0; i < is.length; i++)
-        is[i].textContent = "[img]" + is[i].src + "[/img]"
+
+    var wraps = { "img": "img", "strong": "b", "em": "i", "u": "u"
+                , "sup": "sup", "sub": "sub"
+                }
+
+    for (var t in wraps) {
+        var es = e.getElementsByTagName(t)
+        for (var i = 0; i < es.length; i++)
+            es[i].textContent = "[" + wraps[t] + "]"
+                              + es[i].src
+                              + "[/" + wraps[t] + "]"
+    }
+
     var ss = e.getElementsByClassName("spoiler")
     for (var i = 0; i < ss.length; i++) {
         ss[i].previousElementSibling.textContent =
             "[spoiler=" + ss[i].previousElementSibling.textContent + "]"
         ss[i].textContent = ss[i].textContent + "[/spoiler]"
+    }
+
+    var cs = e.getElementsByTagName("span")
+    for (var i = 0; i < cs.length; i++) {
+        if (cs[i].style.color !== "")
+            cs[i].textContent = "[color=" + cs[i].style.color + "]"
+                              + cs[i].textContent
+                              + "[/color]"
+
+        else if (cs[i].style.backgroundColor !== "")
+            cs[i].textContent = "[bgcolor=" + cs[i].style.backgroundColor + "]"
+                              + cs[i].textContent
+                              + "[/bgcolor]"
+
+        else if (cs[i].style.textAlign === "center")
+            cs[i].textContent = "[center]" + cs[i].textContent + "[/center]"
+
+        else if (cs[i].style.fontFamily !== "")
+            cs[i].textContent = "[font=" + cs[i].style.fontFamily + "]"
+                              + cs[i].textContent
+                              + "[/font]"
+
+        else if (cs[i].style.border !== "")
+            cs[i].textContent = "[border=" + cs[i].style.border + "]"
+                              + cs[i].textContent
+                              + "[/border]"
     }
 
     return e.textContent
@@ -532,6 +569,8 @@ function genPost(dom, trs){
                 }
 
                 if (cip.innerHTML !== ctp.innerHTML) {
+                    verb(cip.innerHTML)
+                    verb(ctp.innerHTML)
                     verb("Updating post " + Math.round(i / 5))
                     ip.innerHTML = tp.innerHTML
 
@@ -861,7 +900,7 @@ function isHome(){
 
 // pageUpdate :: IO ()
 function pageUpdate(){
-    var b = readify('beta-updating', false)
+    var b = readify('beta-loading', false)
 
     if (! b) {
         console.log(cid)
@@ -894,7 +933,7 @@ function forumUpdate(){
 }
 
 // style :: IO ()
-function style(){
+function style() {
     verb("Styling...")
     var e = document.createElement("style")
     var css = ""
