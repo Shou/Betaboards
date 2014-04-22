@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.4.6
+// @version         0.4.7
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -160,15 +160,24 @@ function speedcore(tagname, attrs, childs) {
 function fromBBCode(e) {
     e.innerHTML = e.innerHTML.replace(/<br>/g, "\n")
 
-    var wraps = { "img": "img", "strong": "b", "em": "i", "u": "u"
-                , "sup": "sup", "sub": "sub"
+    var srcs = { "img": "img" }
+    var wraps = { "strong": "b", "em": "i", "u": "u", "sup": "sup"
+                , "sub": "sub"
                 }
+
+    for (var t in srcs) {
+        var es = e.getElementsByTagName(t)
+        for (var i = 0; i < es.length; i++)
+            es[i].textContent = "[" + srcs[t] + "]"
+                              + es[i].src
+                              + "[/" + srcs[t] + "]"
+    }
 
     for (var t in wraps) {
         var es = e.getElementsByTagName(t)
         for (var i = 0; i < es.length; i++)
             es[i].textContent = "[" + wraps[t] + "]"
-                              + es[i].src
+                              + es[i].textContent
                               + "[/" + wraps[t] + "]"
     }
 
@@ -431,7 +440,7 @@ function addTopics(html){
 
             if (or !== nr) {
                 modified = true
-                break // down on the floor!!!
+                break
 
             } else if (ot !== nt) {
                 modified = true
@@ -447,6 +456,7 @@ function addTopics(html){
     // Swap topics
     it.removeChild(old)
     it.appendChild(x)
+    addHideButtons(xs)
 
     // Update userlist
     dom.parentNode.replaceChild(us, dom)
@@ -652,6 +662,7 @@ function highlightModeElems(b){
     document.body.appendChild(s)
 }
 
+// hideUserlists :: IO ()
 function hideUserlists(){
     if (readify('beta-userlist', false)) {
         debu("Hiding userlists!")
@@ -1154,6 +1165,11 @@ function ignoreUI(){
     ])
 
     main.appendChild(ui)
+}
+
+// addHideButtons :: IO ()
+function addHideButton(){
+    
 }
 
 
