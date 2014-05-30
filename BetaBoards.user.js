@@ -25,23 +25,21 @@
 //      - If no ellipsis exists, create it and add the current page number after.
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
+// - Difference of posts
 
 // FIXME
 // - Name/timestamp <tr> loaded at the bottom of the page several times
 //   occasionally.
 //      - Seems to have magically fixed itself???
 //          - Nope, it's still around.
-// - When a post is deleted, the page will fuck up... maybe.
+// - When a post is deleted, the page shifts by one post; incorrect userinfo.
 // - OP gets updated every time.
 //      - Rather, posts with spoilers update.
 //          - Could it be related to the image expanding script? Posts with that
 //            are updated.
-// - Ctrl-mode active when Ctrl-key not held down.
-//      - Fixed????
 // - Next page's replies not added when there's only one reply??
 // - ciid is -1 and apparently -5 posts are added when it should be 5
-// - Pseudo-quoting doesn't keep bold, italic, spoilers, etc
-//      - Attached files are quoted.
+// - Attached files are quoted.
 // - `lastUserlist' disappears after `genPost' which probably means that a <tr>
 //   is overwriting it or something.
 // - Background repeat applied even with no-repeat
@@ -77,6 +75,23 @@ var scrollid = null
 // | Keep auto-scrolling with the page?
 // ascroll :: Bool
 var ascroll = false
+
+var embeds =
+    { "vimeo":
+        { u: "https?:\\/\\/vimeo\\.com\\/(\\S+)"
+        , e: '<iframe src="//player.vimeo.com/video/$1" width="640" height="380" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>'
+        }
+    , "soundcloud":
+        { u: "(https?:\\/\\/soundcloud\\.com\\/\\S+)"
+        , e: '<iframe width="100%" height="166" scrolling="no" frameborder="no" src="https://w.soundcloud.com/player/?url=$1"></iframe>'
+        }
+    , "audio":
+        { u: "(https?:\\/\\/\\S+?\\.(mp3|ogg))"
+        , e: '<audio src="$1" controls width="320" height="32"></audio>' }
+    , "video":
+        { u: "(https?:\\/\\/\\S+?\\.(ogv|webm|mp4))"
+        , e: '<video src="$1" controls muted autoplay loop style="max-width: 640px"></audio>' }
+    }
 
 // }}}
 
@@ -222,6 +237,9 @@ function def(x, y) {
     if (y) return y
     else return x
 }
+
+// slice :: [a] -> [a]
+var slice = Array.prototype.slice
 
 // }}}
 
@@ -578,15 +596,23 @@ function genPost(dom, trs){
                     catch(e) {}
                 }
 
-                if (cip.innerHTML !== ctp.innerHTML) {
-                    verb(cip.innerHTML)
-                    verb(ctp.innerHTML)
-                    verb("Updating post " + Math.round(i / 5))
-                    ip.innerHTML = tp.innerHTML
+                var changed = false
+                var ccip = cip.childNodes
+                var cctp = ctp.childNodes
 
-                    addSpoilerEvent(ip.parentNode)
+                for (var ii = 0; ii < ccip.length; ii++) {
+                    if (ccip[ii].innerHTML !== cctp[ii].innerHTML) {
+                        verb(ccip[ii].innerHTML.trim())
+                        verb(cctp[ii].innerHTML.trim())
+                        verb("Updating post " + Math.round(i / 5))
 
+                        ccip[ii] = cctp[ii]
+
+                        changed = true
+                    }
                 }
+
+                //if (changed) addSpoilerEvent(ip.parentNode)
 
             // Intentionally explodes on new elements
             } else itrs[i].parentNode
@@ -788,7 +814,7 @@ function addSpoilerEvent(tr){
     for (var j = 0; j < sps.length; j++) {
         sps[j].addEventListener("click", function(){
             var s = this.nextElementSibling.style
-            s.display = s.display == "" ? "none" : ""
+            s.display = s.display === "" ? "none" : ""
         })
     }
 }
@@ -830,6 +856,32 @@ function addQuoteEvent(tr){
 
             quickReply().value += bbcode
 
+        }
+    })
+}
+
+// addPostEvent :: IO ()
+function addPostEvent(){
+    var pt = document.querySelector("#c_post-text")
+
+    pt.addEventListener("keydown", function(e){
+        if (e.ctrlKey && e.keyCode === 13) {
+            var pf = document.querySelector(".exclusivebutton")
+
+            pf.submit()
+        }
+    })
+}
+
+// addQuickMsgEvent :: IO ()
+function addQuickMsgEvent(){
+    var qt = document.querySelector("#quickcompose")
+
+    qt.addEventListener("keydown", function(e){
+        if (e.ctrlKey && e.keyCode === 13) {
+            var pf = document.querySelector(".exclusivebutton")
+
+            pf.submit()
         }
     })
 }
@@ -905,6 +957,69 @@ function isHome(){
 
     verb("isHome: " + url[2] === "home")
     return url[2] === "home"
+}
+
+// isPost :: IO Bool
+function isPost(){
+    var url = window.location.pathname.split('/')
+
+    verb("isPost: " + url[2] === "post")
+    return url[2] === "post"
+}
+
+// isPage :: IO Bool
+function isPage(s){
+    var url = window.location.pathname.split('/')
+
+    verb("isPost: " + url[2] === s)
+    return url[2] === s
+}
+
+// }}}
+
+// {{{ High octave sexual moaning
+
+// replacer :: String -> String
+function replacer(x){
+    var y = x
+
+    for (var k in embeds) {
+        var m = x.match(RegExp(embeds[k].u, 'g'))
+
+        if (m) log(m.join(', '))
+        x = x.replace(RegExp(embeds[k].u, 'g'), embeds[k].e)
+    }
+
+    return x
+}
+
+function high(e){
+    var as = e.getElementsByTagName("a")
+
+    // each link
+    for (var j = 0; j < as.length; j++)
+        try {
+            var ass = as[j]
+            var rd = replacer(ass.href)
+
+            if (rd !== ass.href) ass.outerHTML = rd
+
+        } catch(e) {
+            log(e.toString())
+        }
+}
+
+// octave :: IO ()
+function octave(){
+    log("High octave sexual moaning")
+    var xs = document.getElementsByClassName("c_post")
+
+    // Each post
+    for (var i = 0; i < xs.length; i++) {
+        (function (ii){
+            high(xs[ii])
+        })(i)
+    }
 }
 
 // }}}
@@ -1168,8 +1283,8 @@ function ignoreUI(){
 }
 
 // addHideButtons :: IO ()
-function addHideButton(){
-    
+function addHideButton(x){
+    return null
 }
 
 
@@ -1197,6 +1312,16 @@ function main(){
         }
 
         loop = setTimeout(f, time)
+
+    } else if (isPage("post")) {
+        addPostEvent()
+
+    } else if (isPage("msg")) {
+        try {
+            addPostEvent()
+        } catch(e) {
+            addQuickMsgEvent()
+        }
 
     } else if (isForum()) {
         hideUserlists()
