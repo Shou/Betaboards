@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.4.7
+// @version         0.4.8
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -26,6 +26,7 @@
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
 // - Difference of posts
+//      - WIP
 
 // FIXME
 // - Name/timestamp <tr> loaded at the bottom of the page several times
@@ -294,6 +295,9 @@ function reply(t) {
         else debu(xhr)
     }
 
+    // timeout posting
+    setTimeout(function(){ posting = false }, 10000)
+
     // Don't post if it's empty.
     if (str.length > 0) {
         xhr.open("POST", url, true)
@@ -325,7 +329,10 @@ function tbody(){
 // | Get original <tr>s
 // inittrs :: IO [Elem]
 function inittrs(){
-    var es = tbody().children
+    var tb = tbody()
+    var es = tb.children
+
+    if (tb.querySelector(".btn_mod") !== null) es = init(es)
 
     return init(tail(es))
 }
@@ -354,8 +361,9 @@ function focusThreads(div){
 // | Get the class="c_view" element.
 // lastUserlist :: IO Elem
 function lastUserlist(){
-    var fts = document.getElementById("main").getElementsByClassName("c_view")
-    var ft = fts[fts.length - 1]
+    var ft = document.querySelector(".c_view")
+    verb("BENIS")
+    verb(ft)
     var ftl = ft.parentNode
 
     return ftl
@@ -389,32 +397,39 @@ function addPosts(html){
     var d = insert(html)
     var xs = focus(d)
     var trs = init(xs)
-    var us = last(xs)
+    if (d.querySelector(".topic").querySelector(".btn_mod") !== null)
+        trs = init(trs)
+    var us = d.querySelector(".c_view").parentNode
+
+    verb(us)
 
     verb("Loaded " + Math.round(trs.length / 5) + " replies")
 
     // There is at least one reply
     try {
-    if (trs.length >= 5) {
-        var p = dom.parentNode
-        genPost(dom, trs, cid)
-        // Replace old userlist
-        p.replaceChild(us, dom)
+        if (trs.length >= 5) {
+            var p = dom.parentNode
+            genPost(dom, trs, cid)
+            // Replace old userlist
+            p.replaceChild(us, dom)
 
-        if (trs.length >= 25 * 5) {
-            // Increment page
-            cid++
-            // update pages buttons
-            //pagesUpdate()
-            // we don't want the reply length from the old page.
-            old = 0
-        }
+            if (trs.length >= 25 * 5) {
+                // Increment page
+                cid++
+                // update pages buttons
+                //pagesUpdate()
+                // we don't want the reply length from the old page.
+                old = 0
+            }
 
-        // New replies were found
-        if (old < trs.length) time = 6667
-        old = trs.length
+            // New replies were found
+            if (old < trs.length) time = 6667
+            old = trs.length
 
-    } else cid--
+        } else cid--
+
+        // High octave sexual moaning
+        octave()
 
     } catch(e){ debu(e) }
 
@@ -554,7 +569,7 @@ function insert(html){
 }
 
 // genPost :: Elem -> [Elem] -> IO ()
-function genPost(dom, trs){
+function genPost(dom, trs) {
     var itrs = inittrs()
     var p = cid - iid
     var n = p * 125
@@ -612,6 +627,7 @@ function genPost(dom, trs){
                     }
                 }
 
+                // TODO
                 //if (changed) addSpoilerEvent(ip.parentNode)
 
             // Intentionally explodes on new elements
@@ -622,7 +638,13 @@ function genPost(dom, trs){
                 debu(e)
                 if (scrollid === null) scrollid = trs[i % 125].id
             }
-            tbody().insertBefore(trs[i % 125], lastUserlist())
+
+            verb("LEL!!!")
+            var lul = lastUserlist()
+
+            verb(lul)
+
+            tbody().insertBefore(trs[i % 125], lul)
 
             // Add broken events
             if (i % 5 == 1) {
@@ -1024,6 +1046,22 @@ function octave(){
 
 // }}}
 
+// {{{ Quote pyramids
+
+// quotePyramid :: Elem -> IO ()
+function quotePyramid(s) {
+    if (! readify('beta-quotes', false)) {
+
+        var qhs = ".c_post > blockquote blockquote div { display: none } "
+                + ".c_post > blockquote blockquote:hover div { display: block }"
+
+        s.textContent += qhs
+
+    }
+}
+
+// }}}
+
 // pageUpdate :: IO ()
 function pageUpdate(){
     var b = readify('beta-loading', false)
@@ -1058,7 +1096,7 @@ function forumUpdate(){
     }
 }
 
-// style :: IO ()
+// style :: IO Elem
 function style() {
     verb("Styling...")
     var e = document.createElement("style")
@@ -1077,6 +1115,8 @@ function style() {
     e.innerHTML = css
 
     document.body.appendChild(e)
+
+    return e
 }
 
 // ignoredUsers :: IO [String]
@@ -1211,6 +1251,15 @@ function optionsUI(){
                 ]
             ],
             "tr", {}, [
+                "td", { className: "c_desc", textContent: "Disable quote collapsing" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify('beta-quotes', false)
+                             , onchange: togglify('beta-quotes')
+                             }, []
+                ]
+            ],
+            "tr", {}, [
                 "td", { className: "c_desc", textContent: "Hide post numbers" }, [],
                 "td", {}, [
                     "input", { type: "checkbox"
@@ -1292,6 +1341,8 @@ function addHideButton(x){
 function main(){
     verb("BetaBoards!")
 
+    var s = style()
+
     if (isTopic()) {
         iid = getPage()
         cid = iid
@@ -1302,6 +1353,8 @@ function main(){
         postNums()
         floatQR()
         hideUserlists()
+
+        quotePyramid(s)
 
         ignore()
 
@@ -1339,8 +1392,6 @@ function main(){
         ignoreUI()
 
     }
-
-    style()
 }
 
 main()
