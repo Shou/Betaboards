@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.4.8
+// @version         0.5
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -44,6 +44,10 @@
 // - `lastUserlist' disappears after `genPost' which probably means that a <tr>
 //   is overwriting it or something.
 // - Background repeat applied even with no-repeat
+//      - what???
+// - Quick quote doesn't work on some posts.
+//      - Event should't be stripped because 'nothing' still happens instead of
+//        opening a new tab.
 
 // {{{ Global variables
 
@@ -176,7 +180,7 @@ function speedcore(tagname, attrs, childs) {
 function fromBBCode(e) {
     e.innerHTML = e.innerHTML.replace(/<br>/g, "\n")
 
-    var srcs = { "img": "img" }
+    var srcs = { "img": "[img]%s[/img]", "iframe": "%s" }
     var wraps = { "strong": "b", "em": "i", "u": "u", "sup": "sup"
                 , "sub": "sub"
                 }
@@ -184,9 +188,7 @@ function fromBBCode(e) {
     for (var t in srcs) {
         var es = e.getElementsByTagName(t)
         for (var i = 0; i < es.length; i++)
-            es[i].textContent = "[" + srcs[t] + "]"
-                              + es[i].src
-                              + "[/" + srcs[t] + "]"
+            es[i].textContent = src[t].replace(/%s/g, es[i].src)
     }
 
     for (var t in wraps) {
@@ -246,17 +248,18 @@ var slice = Array.prototype.slice
 
 // {{{ XHR
 
+// TODO reinstate debu(xhr)
 // request :: String -> IO ()
 function request(url, f) {
     var xhr = new XMLHttpRequest()
 
     xhr.timeout = 10000
-    xhr.onreadystatechange = function(){
+    xhr.onreadystatechange = function() {
         if (xhr.readyState === 4 && xhr.status === 200) {
             f(xhr.responseText)
         }
 
-        else debu(xhr)
+        else null //debu(xhr)
     }
 
     xhr.open("GET", url, true)
@@ -285,7 +288,8 @@ function reply(t) {
     xhr.onreadystatechange = function(){
         if (xhr.readyState === 4 && xhr.status === 200) {
             verb("Replied.")
-            addPosts(xhr.responseText)
+
+            if (readify('beta-loading', true)) addPosts(xhr.responseText)
             t.value = ""
 
             posting = false
@@ -568,6 +572,12 @@ function insert(html){
     return e
 }
 
+// TODO
+//  - Actually make post editing work.
+//      - For other things than text too.
+// FIXME
+//  - When `(trs.length + n - itrs.length) / 5` is -1, page implodes.
+//  - "Updating post n" off by -1
 // genPost :: Elem -> [Elem] -> IO ()
 function genPost(dom, trs) {
     var itrs = inittrs()
@@ -578,7 +588,9 @@ function genPost(dom, trs) {
         + Math.round((trs.length + n - itrs.length) / 5)
         + " posts..."
         )
-    debu("ciid: " + p + "; trs: " + trs.length + "; itrs: " + itrs.length)
+    debu( "ciid: " + p + "; trs: " + trs.length + "; itrs: " + itrs.length
+        + "; n: " + n
+        )
 
     for (var i = n; i < trs.length + n; i++) {
         try {
@@ -591,19 +603,10 @@ function genPost(dom, trs) {
                 var cip = ip.cloneNode(true)
                 var ctp = tp.cloneNode(true)
 
-                var xs = cip.getElementsByClassName("editby")
-                var ys = ctp.getElementsByClassName("editby")
-
-                for (var j = 0; j < xs.length; j++) {
-                    try { ctp.removeChild(xs[j]) }
-                    catch(e) {}
-                    try { cip.removeChild(ys[j]) }
-                    catch(e) {}
-                }
-
                 var as = cip.getElementsByClassName("spoiler")
                 var bs = ctp.getElementsByClassName("spoiler")
 
+                // XXX what???
                 for (var j = 0; j < as.length; j++) {
                     try { bs[j].style = "" }
                     catch(e) {}
@@ -615,27 +618,81 @@ function genPost(dom, trs) {
                 var ccip = cip.childNodes
                 var cctp = ctp.childNodes
 
+                // TODO remove try-catch
+                try {
                 for (var ii = 0; ii < ccip.length; ii++) {
-                    if (ccip[ii].innerHTML !== cctp[ii].innerHTML) {
-                        verb(ccip[ii].innerHTML.trim())
-                        verb(cctp[ii].innerHTML.trim())
-                        verb("Updating post " + Math.round(i / 5))
+                    if (tp.childNodes[ii] === undefined) verb("no cctp")
 
-                        ccip[ii] = cctp[ii]
+                    else if (cctp[ii].className === "editby")
+                        ip.replaceChild(tp.childNodes[ii], ip.childNodes[ii])
+
+                    // skip certain elements for now
+                    // TODO make them update on src changes
+                    else if (ccip[ii].tagName.indexOf(["IFRAME", "OBJECT"])) {
+                        continue
+
+                    } else if (ccip[ii].textContent !== cctp[ii].textContent) {
+                        verb("ip " + ii)
+                        verb(ip.childNodes)
+                        verb("tp " + ii)
+                        verb(tp.childNodes)
+
+                        ip.replaceChild(tp.childNodes[ii], ip.childNodes[ii])
+
+                        verb("Updated post " + Math.round(i / 5))
 
                         changed = true
                     }
                 }
+                } catch(e) { debu(e.toString()) }
 
-                // TODO
-                //if (changed) addSpoilerEvent(ip.parentNode)
+                verb("cctp len " + cctp.length)
+                verb("ccip len " + ccip.length)
+                for (var l = 0; l < cctp.length - ccip.length; l++) {
+                    verb( "adding to post " + Math.round(i / 5) + ", "
+                        + (ccip.length + l) + " / " + cctp.length
+                        )
+                    verb(tp.childNodes[ccip.length + l])
+                    ip.appendChild(tp.childNodes[ccip.length + l])
+
+                    changed = true
+                }
+
+                var k = 0
+                var kl = ccip.length - cctp.length
+
+                while (k < kl) {
+                    // Ignore edit divs and re-add whitespace accompanier
+                    if (ccip[ccip.length - k - 1].className === "editby") {
+                        kl++
+
+                    } else {
+                        verb( "removing from post " + Math.round(i / 5) + ", "
+                            + (ccip.length - k - 1) + " / " + (ccip.length - 1)
+                            )
+                        verb(ip.childNodes[ccip.length - k - 1])
+                        ip.removeChild(ip.childNodes[ccip.length - k - 1])
+
+                        changed = true
+                    }
+
+                    k++
+                }
+
+                if (changed) {
+                    time = 6667
+
+                    // TODO
+                    //addSpoilerEvent(ip.parentNode)
+                }
 
             // Intentionally explodes on new elements
             } else itrs[i].parentNode
 
         } catch(e) {
-            if (i % 5 == 0) {
-                debu(e)
+            debu(e)
+
+            if (i % 5 === 0) {
                 if (scrollid === null) scrollid = trs[i % 125].id
             }
 
@@ -648,10 +705,10 @@ function genPost(dom, trs) {
 
             // Add broken events
             if (i % 5 == 1) {
-                addSpoilerEvent(trs[i % 125])
+                //addSpoilerEvent(trs[i % 125])
 
             } else if (i % 5 == 3) {
-                addQuoteEvent(trs[i % 125])
+                //addQuoteEvent(trs[i % 125])
             }
         }
     }
