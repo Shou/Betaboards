@@ -155,6 +155,27 @@ function map(f, xs) {
     return tmp
 }
 
+// | Set complement
+// diff :: Array a -> Array a -> Array a
+Array.prototype.diff = function(a) {
+    return this.filter(function(i) { return a.indexOf(i) < 0 })
+}
+
+// | Set intersect
+// inter :: Array a -> Array a -> Array a
+Array.prototype.inter = function(a) {
+    this.filter(function(n) { return a.indexOf(n) != -1 })
+}
+
+// NodeList map
+NodeList.prototype.map = function(f) {
+    return Array.prototype.map.call(this, f)
+}
+
+NodeList.prototype.filter = function(f) {
+    return Array.prototype.filter.call(this, f)
+}
+
 // | No more Flydom!
 // speedcore :: String -> Obj -> Tree -> Elem
 function speedcore(tagname, attrs, childs) {
@@ -393,7 +414,74 @@ function usernamePost(e){
 // {{{ DOM Modifiers
 
 // addPosts :: String -> IO ()
-function addPosts(html){
+function addPosts(html) {
+    verb("Initiating addPosts...")
+
+    try {
+
+    var par = new DOMParser()
+      , doc = par.parseFromString(html, "text/html")
+      , oids = document.querySelectorAll("tr[id^='post-']")
+      , nids = doc.querySelectorAll("tr[id^='post-']")
+      , ous = document.querySelector(".c_view")
+      , nus = doc.querySelector(".c_view")
+      , tvib = document.querySelector("#topic_viewer > tbody")
+
+    verb("oids: " + oids.length + ", nids: " + nids.length)
+
+    // Replace userlist
+    ous.parentNode.replaceChild(nus, ous)
+
+    // New posts, removed posts and equal posts
+    var newps = nids.filter(function(e) {
+            return oids.map(function(r) { return r.id }).indexOf(e.id) < 0
+    })
+    var remps = oids.filter(function(e) {
+            return nids.map(function(r) { return r.id }).indexOf(e.id) < 0
+    })
+    var oldps = nids.filter(function(e) {
+            return oids.map(function(r) { return r.id }).indexOf(e.id) != -1
+    })
+
+    verb(newps)
+    verb(remps)
+    verb("Old posts: " + oldps.length)
+
+    // Remove deleted posts
+    remps.map(function(e) {
+        e = e.parentNode
+
+        for (var i = 0; i < 5; i++) {
+            tvib.removeChild(e)
+
+            e = e.nextElementSibling
+        }
+    })
+
+    // Add new posts
+    newps.map(function(e) {
+        e = e.parentNode
+
+        for (var i = 0; i < 5; i++) {
+            verb(e)
+            tvib.insertBefore(e, tvib.children[tvib.children.length - 1])
+
+            e = trace(e.nextElementSibling)
+        }
+    })
+
+    // Update old posts
+    oldps.map(function(e) {
+        e.parentNode.nextElementSibling
+    })
+
+    if (oldps.length % 25 === 0) cid++
+
+    } catch(e) { debu(e.toString()) }
+}
+
+// addPostsOld :: String -> IO ()
+function addPostsOld(html){
     // Scroll height before inserting
     var oldscroll = document.body.scrollHeight
     var dom = lastUserlist()
@@ -493,7 +581,7 @@ function addTopics(html){
     // Swap topics
     it.removeChild(old)
     it.appendChild(x)
-    addHideButtons(xs)
+    // addHideButtons(xs)
 
     // Update userlist
     dom.parentNode.replaceChild(us, dom)
@@ -1162,7 +1250,7 @@ function style() {
 
     var ids = []
     try { ids = JSON.parse(localStorage['beta-memberids']) }
-    catch(e) { debu(e) }
+    catch(e) { debu(e.toString()) }
 
     for (var i = 0; i < ids.length; i++)
         csss.push("a[href*=\"" + ids[i] + "\"]")
@@ -1182,7 +1270,7 @@ function ignoredUsers(){
         return JSON.parse(localStorage['beta-ignoredusers'])
 
     } catch(e){
-        debu(e)
+        debu(e.toString())
         return []
     }
 }
@@ -1257,7 +1345,7 @@ function modify(k){ return function(){
 function readify(k, a){
     try { return JSON.parse(localStorage[k])
     } catch(e) {
-        debu(e)
+        debu(e.toString())
         return a
     }
 }
