@@ -100,6 +100,11 @@ var embeds =
         { u: "(https?:\\/\\/\\S+?\\.(ogv|webm|mp4))"
         , e: '<video src="$1" controls muted autoplay loop style="max-width: 640px"></audio>' }
         , s: "$1"
+    , "vine":
+        { u: "https?:\\/\\/vine.co\\/v\\/([a-zA-Z0-9]+)"
+        , e: '<iframe class="vine-embed" src="https://vine.co/v/$1/embed/simple" width="480" height="480" frameborder="0"></iframe><script async src="//platform.vine.co/static/scripts/embed.js" charset="utf-8"></script>'
+        , s: "https://vine.co/v/$1/embed/simple"
+        }
     }
 
 // }}}
