@@ -81,6 +81,7 @@ var scrollid = null
 // ascroll :: Bool
 var ascroll = false
 
+// TODO account for video and audio ?GET=attributes
 var embeds =
     { "vimeo":
         { u: "https?:\\/\\/vimeo\\.com\\/(\\S+)"
@@ -93,11 +94,11 @@ var embeds =
         , s: "https://w.soundcloud.com/player/?url=$1"
         }
     , "audio":
-        { u: "(https?:\\/\\/\\S+?\\.(mp3|ogg))"
+        { u: "(https?:\\/\\/\\S+?\\.(mp3|ogg)\\?\\S+)"
         , e: '<audio src="$1" controls width="320" height="32"></audio>' }
         , s: "$1"
     , "video":
-        { u: "(https?:\\/\\/\\S+?\\.(ogv|webm|mp4))"
+        { u: "(https?:\\/\\/\\S+?\\.(ogv|webm|mp4)\\?\\S+)"
         , e: '<video src="$1" controls muted autoplay loop style="max-width: 640px"></audio>' }
         , s: "$1"
     , "vine":
@@ -174,6 +175,11 @@ Array.prototype.diff = function(a) {
 // inter :: Array a -> Array a -> Array a
 Array.prototype.inter = function(a) {
     this.filter(function(n) { return a.indexOf(n) != -1 })
+}
+
+Array.prototype.mapDiff = function(f, xs) {
+    xs = xs.map(f)
+    return this.filter(function(x) { return xs.indexOf(f(x)) < 0 })
 }
 
 // NodeList map
@@ -520,10 +526,13 @@ function addPosts(html) {
     verb("Old posts: " + oldps.length)
     oldps.map(function(e) {
         var eq = document.querySelector('#' + e.id)
+          , ne = e.nextElementSibling.children[1]
+          , oe = eq.nextElementSibling.children[1]
+
         // Replace timestamp
         eq.parentNode.replaceChild(e, eq)
 
-        updatePost(e, eq)
+        // updatePost(ne, oe)
     })
 
     octave()
@@ -536,18 +545,25 @@ function addPosts(html) {
 }
 
 // TODO generalize the SHIT out of this you B I T C H
+// TODO remove deleted nodes
 // updatePost :: Elem -> Elem -> IO ()
 function updatePost(ne, oe) {
+    verb("Updaing post!")
     var coe = oe.childNodes
       , cne = ne.childNodes
       , changed = false
 
+    try {
+
     for (var i = 0; i < cne.length; i++) {
+        verb(coe[i])
+        verb(cne[i])
         if (coe[i] === null) oe.appendChild(ne.childNodes[i])
 
         else if ( cne[i].constructor === Text
               && coe[i].constructor === Text
               && coe[i].textContent !== cne[i].textContent) {
+            verb("updatePost: Text")
 
             coe[i].textContent = cne[i].textContent
 
@@ -556,6 +572,7 @@ function updatePost(ne, oe) {
         } else if ( cne[i].constructor === HTMLAnchorElement
                && coe[i].constructor === HTMLAnchorElement
                && cne[i].tagName === coe[i].tagName) {
+            verb("updatePost: HTMLAnchorElement")
 
             if (cne[i].tagName === "OBJECT") {
                 if (cne[i].data !== coe[i].data) {
@@ -570,24 +587,45 @@ function updatePost(ne, oe) {
 
                     changed = true
                 }
+
+            } else if (cne[i].tagName === "DIV") {
             }
 
         } else if ( cne[i].constructor === HTMLAnchorElement
-                 && coe[i].constructor === HTMLAnchorElement) {
+                 && coe[i].constructor === HTMLAnchorElement
+                 && cne[i].tagName === "A") {
+            verb("updatePost: Octave")
+
+            var nm = cne[i].href.match(RegExp(embed[k].u, 'g'))
+              , nsrc = cne[i].href
+            for (var k in embeds)
+                nsrc = nsrc.replace(RegExp(embeds[k].u, 'g'), embeds[k].s)
 
             if (coe[i].tagName === "IFRAME") {
+                if (coe[i].src !== nsrc) {
+                    oe.replaceChild(ne.childNodes[i], oe.childNodes[i])
+
+                    changed = true
+                }
 
             } else if (coe[i].tagName === "VIDEO"
                     || coe[i].tagName === "AUDIO") {
 
-                if (coe[i].src !== cne[i].href) {
+                if (coe[i].src !== cne[i].href && nm) {
                     coe[i].src = cne[i].href
 
                     changed = true
+
+                } else if (nm) {
+                    oe.replaceChild(ne.childNodes[i], oe.childNodes[i])
+
+                    changed = true
+
                 }
             }
 
         } else {
+            verb("updatePost: simple replace")
             oe.replaceChild(ne.childNodes[i], oe.childNodes[i])
 
             changed = true
