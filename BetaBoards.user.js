@@ -85,17 +85,21 @@ var embeds =
     { "vimeo":
         { u: "https?:\\/\\/vimeo\\.com\\/(\\S+)"
         , e: '<iframe src="//player.vimeo.com/video/$1" width="640" height="380" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>'
+        , s: "//player.vimeo.com/video/$1"
         }
     , "soundcloud":
         { u: "(https?:\\/\\/soundcloud\\.com\\/\\S+)"
         , e: '<iframe width="100%" height="166" scrolling="no" frameborder="no" src="https://w.soundcloud.com/player/?url=$1"></iframe>'
+        , s: "https://w.soundcloud.com/player/?url=$1"
         }
     , "audio":
         { u: "(https?:\\/\\/\\S+?\\.(mp3|ogg))"
         , e: '<audio src="$1" controls width="320" height="32"></audio>' }
+        , s: "$1"
     , "video":
         { u: "(https?:\\/\\/\\S+?\\.(ogv|webm|mp4))"
         , e: '<video src="$1" controls muted autoplay loop style="max-width: 640px"></audio>' }
+        , s: "$1"
     }
 
 // }}}
@@ -174,6 +178,25 @@ NodeList.prototype.map = function(f) {
 
 NodeList.prototype.filter = function(f) {
     return Array.prototype.filter.call(this, f)
+}
+
+NodeList.prototype.mapDiff = function(f, xs) {
+    xs = xs.map(f)
+    return this.filter(function(x) { return xs.indexOf(f(x)) < 0 })
+}
+
+NodeList.prototype.mapInter = function(f, xs) {
+    xs = xs.map(f)
+    return this.filter(function(x) { return xs.indexOf(f(x)) != -1 })
+}
+
+NodeList.prototype.slice = function() {
+    if (arguments.length === 1)
+        return Array.prototype.slice.call(this, arguments[0])
+    else if (arguments.length === 2)
+        return Array.prototype.slice.call(this, arguments[0], arguments[1])
+    else
+        throw (new Error("No argument(s) to function `NodeList.prototype.slice'"))
 }
 
 // | No more Flydom!
@@ -413,6 +436,7 @@ function usernamePost(e){
 
 // {{{ DOM Modifiers
 
+// XXX deleted post removal working?
 // addPosts :: String -> IO ()
 function addPosts(html) {
     verb("Initiating addPosts...")
@@ -421,61 +445,151 @@ function addPosts(html) {
 
     var par = new DOMParser()
       , doc = par.parseFromString(html, "text/html")
+      // Old and new posts
       , oids = document.querySelectorAll("tr[id^='post-']")
       , nids = doc.querySelectorAll("tr[id^='post-']")
+      // Old and new userlists
       , ous = document.querySelector(".c_view")
       , nus = doc.querySelector(".c_view")
+      // t_viewer body
       , tvib = document.querySelector("#topic_viewer > tbody")
+      // oids without previous pages; newly old IDs
+      , noids = oids.slice(Math.floor(oids.length / 25) * 25)
 
-    verb("oids: " + oids.length + ", nids: " + nids.length)
+    verb( "oids: " + oids.length + ", nids: " + nids.length + ", noids: "
+        + noids.length
+        )
 
     // Replace userlist
     ous.parentNode.replaceChild(nus, ous)
 
+    // TODO generalize code
     // New posts, removed posts and equal posts
-    var newps = nids.filter(function(e) {
-            return oids.map(function(r) { return r.id }).indexOf(e.id) < 0
-    })
-    var remps = oids.filter(function(e) {
-            return nids.map(function(r) { return r.id }).indexOf(e.id) < 0
-    })
-    var oldps = nids.filter(function(e) {
-            return oids.map(function(r) { return r.id }).indexOf(e.id) != -1
-    })
-
-    verb(newps)
-    verb(remps)
-    verb("Old posts: " + oldps.length)
+    var newps = nids.mapDiff(function(e) { return e.id }, oids)
+      , remps = noids.mapDiff(function(e) { return e.id }, nids)
+      , oldps = nids.mapInter(function(e) { return e.id }, oids)
 
     // Remove deleted posts
+    verb("Removed posts: " + remps.length)
     remps.map(function(e) {
-        e = e.parentNode
+        // TODO generalize code
+        var es = [ e, e.nextElementSibling
+                 , e.nextElementSibling.nextElementSibling
+                 , e.nextElementSibling.nextElementSibling.nextElementSibling
+                 , e.nextElementSibling.nextElementSibling.nextElementSibling.nextElementSibling
+                 ]
 
+        // TODO remove only DELETED posts
+        //          should work now???
         for (var i = 0; i < 5; i++) {
             tvib.removeChild(e)
-
-            e = e.nextElementSibling
         }
     })
 
     // Add new posts
+    verb("New posts: " + newps.length)
     newps.map(function(e) {
-        e = e.parentNode
+        // TODO generalize code
+        var es = [ e, e.nextElementSibling
+                 , e.nextElementSibling.nextElementSibling
+                 , e.nextElementSibling.nextElementSibling.nextElementSibling
+                 , e.nextElementSibling.nextElementSibling.nextElementSibling.nextElementSibling
+                 ]
 
         for (var i = 0; i < 5; i++) {
-            verb(e)
-            tvib.insertBefore(e, tvib.children[tvib.children.length - 1])
+            tvib.insertBefore(es[i], tvib.querySelector(".c_view").parentNode)
 
-            e = trace(e.nextElementSibling)
+            // Add spoiler event
+            if (i == 1) addSpoilerEvent(es[i])
+
+            // Add quick quote event
+            if (i === 3) addQuoteEvent(es[i])
         }
     })
 
+    // Update time before update detecting
+    if (newps.length > 0 || remps.length > 0) time = 10000
+    else time = Math.min(160000, Math.floor(time * 1.5))
+
     // Update old posts
+    verb("Old posts: " + oldps.length)
     oldps.map(function(e) {
-        e.parentNode.nextElementSibling
+        var eq = document.querySelector('#' + e.id)
+        // Replace timestamp
+        eq.parentNode.replaceChild(e, eq)
+
+        updatePost(e, eq)
     })
 
-    if (oldps.length % 25 === 0) cid++
+    octave()
+
+    // TODO test against deleted posts, might get stuck on page from < 25 posts
+    // Switch to new page
+    cid = iid + Math.floor(oids.length / 25)
+
+    } catch(e) { debu(e.toString()) }
+}
+
+// TODO generalize the SHIT out of this you B I T C H
+// updatePost :: Elem -> Elem -> IO ()
+function updatePost(ne, oe) {
+    var coe = oe.childNodes
+      , cne = ne.childNodes
+      , changed = false
+
+    for (var i = 0; i < cne.length; i++) {
+        if (coe[i] === null) oe.appendChild(ne.childNodes[i])
+
+        else if ( cne[i].constructor === Text
+              && coe[i].constructor === Text
+              && coe[i].textContent !== cne[i].textContent) {
+
+            coe[i].textContent = cne[i].textContent
+
+            changed = true
+
+        } else if ( cne[i].constructor === HTMLAnchorElement
+               && coe[i].constructor === HTMLAnchorElement
+               && cne[i].tagName === coe[i].tagName) {
+
+            if (cne[i].tagName === "OBJECT") {
+                if (cne[i].data !== coe[i].data) {
+                    coe[i].data = cne[i].data
+
+                    changed = true
+                }
+
+            } else if (cne[i].tagName === "IMG") {
+                if (cne[i].src !== coe[i].src) {
+                    coe[i].src = cne[i].src
+
+                    changed = true
+                }
+            }
+
+        } else if ( cne[i].constructor === HTMLAnchorElement
+                 && coe[i].constructor === HTMLAnchorElement) {
+
+            if (coe[i].tagName === "IFRAME") {
+
+            } else if (coe[i].tagName === "VIDEO"
+                    || coe[i].tagName === "AUDIO") {
+
+                if (coe[i].src !== cne[i].href) {
+                    coe[i].src = cne[i].href
+
+                    changed = true
+                }
+            }
+
+        } else {
+            oe.replaceChild(ne.childNodes[i], oe.childNodes[i])
+
+            changed = true
+        }
+    }
+
+    if (changed) time = 10000
 
     } catch(e) { debu(e.toString()) }
 }
