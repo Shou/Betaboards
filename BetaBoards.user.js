@@ -25,29 +25,14 @@
 //      - If no ellipsis exists, create it and add the current page number after.
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
-// - Difference of posts
-//      - WIP
+// - Add quote events on postUpdate
 
 // FIXME
-// - Name/timestamp <tr> loaded at the bottom of the page several times
-//   occasionally.
-//      - Seems to have magically fixed itself???
-//          - Nope, it's still around.
-// - When a post is deleted, the page shifts by one post; incorrect userinfo.
-// - OP gets updated every time.
-//      - Rather, posts with spoilers update.
-//          - Could it be related to the image expanding script? Posts with that
-//            are updated.
-// - Next page's replies not added when there's only one reply??
-// - ciid is -1 and apparently -5 posts are added when it should be 5
 // - Attached files are quoted.
-// - `lastUserlist' disappears after `genPost' which probably means that a <tr>
-//   is overwriting it or something.
-// - Background repeat applied even with no-repeat
-//      - what???
 // - Quick quote doesn't work on some posts.
 //      - Event should't be stripped because 'nothing' still happens instead of
 //        opening a new tab.
+// - postNums probably doesn't apply to updated posts
 
 // {{{ Global variables
 
@@ -692,69 +677,6 @@ function updatePost(ne, oe) {
     return changed
 }
 
-// addPostsOld :: String -> IO ()
-function addPostsOld(html){
-    // Scroll height before inserting
-    var oldscroll = document.body.scrollHeight
-    var dom = lastUserlist()
-    var focused = document.activeElement.name === "post"
-    var d = insert(html)
-    var xs = focus(d)
-    var trs = init(xs)
-    if (d.querySelector(".topic").querySelector(".btn_mod") !== null)
-        trs = init(trs)
-    var us = d.querySelector(".c_view").parentNode
-
-    verb(us)
-
-    verb("Loaded " + Math.round(trs.length / 5) + " replies")
-
-    // There is at least one reply
-    try {
-        if (trs.length >= 5) {
-            var p = dom.parentNode
-            genPost(dom, trs, cid)
-            // Replace old userlist
-            p.replaceChild(us, dom)
-
-            if (trs.length >= 25 * 5) {
-                // Increment page
-                cid++
-                // update pages buttons
-                //pagesUpdate()
-                // we don't want the reply length from the old page.
-                old = 0
-            }
-
-            // New replies were found
-            if (old < trs.length) time = 6667
-            old = trs.length
-
-        } else cid--
-
-        // High octave sexual moaning
-        octave()
-
-    } catch(e){ debu(e) }
-
-    // Remove loaded HTML
-    d.parentNode.removeChild(d)
-    // Focus textarea
-    if (focused) quickReply().focus()
-    // Scroll to first new post
-    autoScroll(oldscroll, scrollid)
-    // Reset scroll ID
-    scrollid = null
-    // Set time
-    time = Math.min(160000, Math.floor(time * 1.5))
-    // ignore!
-    ignore()
-    // Remove post numbers!
-    postNums()
-
-    verb("Set time to " + time)
-}
-
 // addTopics :: String -> IO ()
 function addTopics(html){
     var dom = lastUserlist()
@@ -807,62 +729,6 @@ function addTopics(html){
     verb("Set time to " + time)
 }
 
-// TODO
-// | Update page numbers at the top/bottom.
-// pagesUpdate :: IO ()
-function pagesUpdate(){
-    var ps = document.getElementsByClassName("cat-pages")
-    var es = []
-
-    verb("Finding current page element...")
-
-    // Only the first two or less "cat-pages" elements.
-    for (var i = 0; i < Math.min(ps.length, 2); i++) {
-        var ns = ps[i].children
-        var b = false
-
-        for (var j = 0; j < ns.length; j++) {
-            try {
-                if (ns[j].className === "cat-pagesjump") b = true
-                else if (ns[j].children[0].rel === undefined) es.push(ns[j])
-                else if (b) ns[j].parentNode.removeChild(ns[j])
-            } catch(e) {}
-        }
-    }
-
-    if (es.length > 0) {
-        for (var i = 0; i < es.length; i++) {
-            var e = es[i]
-            var s = document.createElement("span")
-            var li = document.createElement("li")
-            s.appendChild(li)
-
-            try {
-                var p = e.nextElementSibling.children[0]
-                li.textContent = p.textContent
-                e.parentNode.replaceChild(s, p)
-                verb("Edited page sibling")
-
-            } catch(e) {
-                verb("No page sibling")
-                // FIXME e.children is undefined
-                e.children[0].textContent = parseInt(e.children[0].textContent) + 1
-                e.parentNode.appendChild(s)
-            }
-        }
-
-    } else if (ps.length < 1) {
-        var p = speedcore("ul", { className: "cat-pages" }, [
-            "li", { className: "cat-pageshead", textContent: "Pages:" }, [],
-            "li", {}, [
-            ]
-        ])
-
-    } else {
-        verb("No current page found")
-    }
-}
-
 // insert :: String -> IO Elem
 function insert(html){
     var e = document.createElement("div")
@@ -870,148 +736,6 @@ function insert(html){
     e.innerHTML = html
 
     return e
-}
-
-// TODO
-//  - Actually make post editing work.
-//      - For other things than text too.
-// FIXME
-//  - When `(trs.length + n - itrs.length) / 5` is -1, page implodes.
-//  - "Updating post n" off by -1
-// genPost :: Elem -> [Elem] -> IO ()
-function genPost(dom, trs) {
-    var itrs = inittrs()
-    var p = cid - iid
-    var n = p * 125
-
-    verb("Adding "
-        + Math.round((trs.length + n - itrs.length) / 5)
-        + " posts..."
-        )
-    debu( "ciid: " + p + "; trs: " + trs.length + "; itrs: " + itrs.length
-        + "; n: " + n
-        )
-
-    for (var i = n; i < trs.length + n; i++) {
-        try {
-            // Update timestamp
-            if (i % 5 == 0) itrs[i].parentNode.replaceChild(trs[i % 125], itrs[i])
-            // Update contents of edited posts
-            else if (i % 5 == 1) {
-                var ip = itrs[i].children[1]
-                var tp = trs[i % 125].children[1]
-                var cip = ip.cloneNode(true)
-                var ctp = tp.cloneNode(true)
-
-                var as = cip.getElementsByClassName("spoiler")
-                var bs = ctp.getElementsByClassName("spoiler")
-
-                // XXX what???
-                for (var j = 0; j < as.length; j++) {
-                    try { bs[j].style = "" }
-                    catch(e) {}
-                    try { as[j].style = "" }
-                    catch(e) {}
-                }
-
-                var changed = false
-                var ccip = cip.childNodes
-                var cctp = ctp.childNodes
-
-                // TODO remove try-catch
-                try {
-                for (var ii = 0; ii < ccip.length; ii++) {
-                    if (tp.childNodes[ii] === undefined) verb("no cctp")
-
-                    else if (cctp[ii].className === "editby")
-                        ip.replaceChild(tp.childNodes[ii], ip.childNodes[ii])
-
-                    // skip certain elements for now
-                    // TODO make them update on src changes
-                    else if (ccip[ii].tagName.indexOf(["IFRAME", "OBJECT"])) {
-                        continue
-
-                    } else if (ccip[ii].textContent !== cctp[ii].textContent) {
-                        verb("ip " + ii)
-                        verb(ip.childNodes)
-                        verb("tp " + ii)
-                        verb(tp.childNodes)
-
-                        ip.replaceChild(tp.childNodes[ii], ip.childNodes[ii])
-
-                        verb("Updated post " + Math.round(i / 5))
-
-                        changed = true
-                    }
-                }
-                } catch(e) { debu(e.toString()) }
-
-                verb("cctp len " + cctp.length)
-                verb("ccip len " + ccip.length)
-                for (var l = 0; l < cctp.length - ccip.length; l++) {
-                    verb( "adding to post " + Math.round(i / 5) + ", "
-                        + (ccip.length + l) + " / " + cctp.length
-                        )
-                    verb(tp.childNodes[ccip.length + l])
-                    ip.appendChild(tp.childNodes[ccip.length + l])
-
-                    changed = true
-                }
-
-                var k = 0
-                var kl = ccip.length - cctp.length
-
-                while (k < kl) {
-                    // Ignore edit divs and re-add whitespace accompanier
-                    if (ccip[ccip.length - k - 1].className === "editby") {
-                        kl++
-
-                    } else {
-                        verb( "removing from post " + Math.round(i / 5) + ", "
-                            + (ccip.length - k - 1) + " / " + (ccip.length - 1)
-                            )
-                        verb(ip.childNodes[ccip.length - k - 1])
-                        ip.removeChild(ip.childNodes[ccip.length - k - 1])
-
-                        changed = true
-                    }
-
-                    k++
-                }
-
-                if (changed) {
-                    time = 6667
-
-                    // TODO
-                    //addSpoilerEvent(ip.parentNode)
-                }
-
-            // Intentionally explodes on new elements
-            } else itrs[i].parentNode
-
-        } catch(e) {
-            debu(e)
-
-            if (i % 5 === 0) {
-                if (scrollid === null) scrollid = trs[i % 125].id
-            }
-
-            verb("LEL!!!")
-            var lul = lastUserlist()
-
-            verb(lul)
-
-            tbody().insertBefore(trs[i % 125], lul)
-
-            // Add broken events
-            if (i % 5 == 1) {
-                //addSpoilerEvent(trs[i % 125])
-
-            } else if (i % 5 == 3) {
-                //addQuoteEvent(trs[i % 125])
-            }
-        }
-    }
 }
 
 // remNextButton :: IO ()
@@ -1224,7 +948,7 @@ function addQuoteEvent(tr){
             for (var i = 0; i < bs.length; i++)
                 post.removeChild(bs[i])
             // > no concat function for HTMLCollection
-            // are u kidding me m8
+            // are u kidding me
             for (var i = 0; i < cs.length; i++)
                 post.removeChild(cs[i])
 
@@ -1702,7 +1426,6 @@ function main(){
     if (isTopic()) {
         iid = getPage()
         cid = iid
-        old = inittrs().length
 
         initEvents()
         remNextButton()
