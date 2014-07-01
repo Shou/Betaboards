@@ -595,13 +595,20 @@ function updatePost(ne, oe) {
             }
 
         } else if ( cne[i].nodeType === 1
-                  && coe[i].nodeType === 1
-                  && cne[i].tagName === coe[i].tagName) {
+                 && coe[i].nodeType === 1
+                 && cne[i].tagName === coe[i].tagName) {
             verb("updatePost: Element")
 
             if (cne[i].tagName === "OBJECT") {
                 if (cne[i].data !== coe[i].data) {
                     coe[i].data = cne[i].data
+
+                    changed = true
+
+                } else if ( cne[i].width !== coe[i].width
+                         || cne[i].height !== coe[i].height) {
+                    coe[i].width = cne[i].width
+                    coe[i].height = cne[i].height
 
                     changed = true
                 }
@@ -614,6 +621,10 @@ function updatePost(ne, oe) {
                 }
 
             } else if (cne[i].tagName === "DIV") {
+                // Recursion for deeper elements!
+                var dc = updatePost(cne[i], coe[i])
+
+                if (dc) changed = true
             }
 
         } else if ( cne[i].nodeType === 1
@@ -677,6 +688,8 @@ function updatePost(ne, oe) {
     if (changed) time = 10000
 
     } catch(e) { debu(e.toString()) }
+
+    return changed
 }
 
 // addPostsOld :: String -> IO ()
