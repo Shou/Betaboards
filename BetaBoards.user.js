@@ -234,14 +234,16 @@ function speedcore(tagname, attrs, childs) {
     return e;
 }
 
+// TODO turn octave elements to their original URLs
 // fromBBCode :: Elem -> String
 function fromBBCode(e) {
     e.innerHTML = e.innerHTML.replace(/<br>/g, "\n")
 
     var srcs = { "img": "[img]%s[/img]", "iframe": "%s" }
-    var wraps = { "strong": "b", "em": "i", "u": "u", "sup": "sup"
+      , wraps = { "strong": "b", "em": "i", "u": "u", "sup": "sup"
                 , "sub": "sub"
                 }
+      , datas = { "object": "%s" }
 
     for (var t in srcs) {
         var es = e.getElementsByTagName(t)
@@ -255,6 +257,15 @@ function fromBBCode(e) {
             es[i].textContent = "[" + wraps[t] + "]"
                               + es[i].textContent
                               + "[/" + wraps[t] + "]"
+    }
+
+    for (var t in datas) {
+        var es = e.getElementsByTagName(t)
+        for (var i = 0; i < es.length; i++)
+            es[i].textContent =
+                es[i].data.replace( /https?:\/\/(www\.)?youtube.com\/v\/([^\?]+).*/
+                                  , "https://youtu.be/$2"
+                                  )
     }
 
     var ss = e.getElementsByClassName("spoiler")
@@ -535,7 +546,9 @@ function addPosts(html) {
         // Replace timestamp
         eq.parentNode.replaceChild(e, eq)
 
-        // updatePost(ne, oe)
+        verb(e.textContent.replace(/\s+/g, ' '))
+
+        updatePost(ne, oe)
     })
 
     octave()
@@ -551,31 +564,40 @@ function addPosts(html) {
 // TODO remove deleted nodes
 // updatePost :: Elem -> Elem -> IO ()
 function updatePost(ne, oe) {
-    verb("Updaing post!")
     var coe = oe.childNodes
       , cne = ne.childNodes
       , changed = false
 
+    verb("cne #" + cne.length + ", coe #" + coe.length)
+
     try {
 
+    // Add or change nodes
     for (var i = 0; i < cne.length; i++) {
-        verb(coe[i])
-        verb(cne[i])
-        if (coe[i] === null) oe.appendChild(ne.childNodes[i])
+        verb( "cne.nodeType: " + cne[i].nodeType + "; coe.nodeType: "
+            + (coe[i] ? coe[i].nodeType : undefined)
+            )
+        verb("cne #" + ne.childNodes.length + ", coe #" + oe.childNodes.length)
 
-        else if ( cne[i].constructor === Text
-              && coe[i].constructor === Text
-              && coe[i].textContent !== cne[i].textContent) {
+        if (! coe[i]) {
+            verb("updatePost: Append " + i + " / " + cne.length)
+
+            oe.appendChild(ne.childNodes[i].cloneNode(true))
+
+        } else if ( cne[i].nodeType === 3
+                 && coe[i].nodeType === 3) {
             verb("updatePost: Text")
 
-            coe[i].textContent = cne[i].textContent
+            if (coe[i].textContent !== cne[i].textContent) {
+                coe[i].textContent = cne[i].textContent
 
-            changed = true
+                changed = true
+            }
 
-        } else if ( cne[i].constructor === HTMLAnchorElement
-               && coe[i].constructor === HTMLAnchorElement
-               && cne[i].tagName === coe[i].tagName) {
-            verb("updatePost: HTMLAnchorElement")
+        } else if ( cne[i].nodeType === 1
+                  && coe[i].nodeType === 1
+                  && cne[i].tagName === coe[i].tagName) {
+            verb("updatePost: Element")
 
             if (cne[i].tagName === "OBJECT") {
                 if (cne[i].data !== coe[i].data) {
@@ -594,8 +616,8 @@ function updatePost(ne, oe) {
             } else if (cne[i].tagName === "DIV") {
             }
 
-        } else if ( cne[i].constructor === HTMLAnchorElement
-                 && coe[i].constructor === HTMLAnchorElement
+        } else if ( cne[i].nodeType === 1
+                 && coe[i].nodeType === 1
                  && cne[i].tagName === "A") {
             verb("updatePost: Octave")
 
@@ -629,12 +651,29 @@ function updatePost(ne, oe) {
 
         } else {
             verb("updatePost: simple replace")
-            oe.replaceChild(ne.childNodes[i], oe.childNodes[i])
+            oe.replaceChild(ne.childNodes[i].cloneNode(true), oe.childNodes[i])
 
             changed = true
         }
     }
 
+    verb("cne #" + ne.childNodes.length + ", coe #" + oe.childNodes.length)
+
+    // FIXME deletes appended nodes ???
+    // Remove deleted nodes
+    if (coe.length > cne.length) {
+        // coe.length changes
+        var len = coe.length
+
+        // remove excessive nodes
+        for (var i = cne.length; i < len; i++) {
+            debu("updatePost: Removing node " + i + " / " + len)
+
+            oe.removeChild(coe[cne.length])
+        }
+    }
+
+    verb("updatePost: changed? " + changed)
     if (changed) time = 10000
 
     } catch(e) { debu(e.toString()) }
@@ -1318,6 +1357,7 @@ function replacer(x){
     return x
 }
 
+// high :: Elem -> IO ()
 function high(e){
     var as = e.getElementsByTagName("a")
 
