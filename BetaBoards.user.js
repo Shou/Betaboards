@@ -67,7 +67,6 @@ var scrollid = null
 var ascroll = false
 
 // TODO account for video and audio ?GET=attributes
-// FIXME this is probably what's causing the editbys and images to get wrecked.
 var embeds =
     { "vimeo":
         { u: "https?:\\/\\/vimeo\\.com\\/(\\S+)"
@@ -233,7 +232,7 @@ function fromBBCode(e) {
     for (var t in srcs) {
         var es = e.getElementsByTagName(t)
         for (var i = 0; i < es.length; i++)
-            es[i].textContent = src[t].replace(/%s/g, es[i].src)
+            es[i].textContent = srcs[t].replace(/%s/g, es[i].src)
     }
 
     for (var t in wraps) {
