@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.5.1
+// @version         0.5.2
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -66,31 +66,67 @@ var scrollid = null
 // ascroll :: Bool
 var ascroll = false
 
+// XXX removing vine script might cause unwanted behavior
 // TODO account for video and audio ?GET=attributes
 var embeds =
     { "vimeo":
         { u: "https?:\\/\\/vimeo\\.com\\/(\\S+)"
-        , e: '<iframe src="//player.vimeo.com/video/$1" width="640" height="380" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>'
+        , e: function(url) {
+                return speedcore("iframe", { src: url
+                                           , width: 640
+                                           , height: 380
+                                           , frameborder: 0
+                                           , webkitallowfullscreen: true
+                                           , mozallowfullscreen: true
+                                           , allowfullscreen: true
+                                           }, [])
+             }
         , s: "//player.vimeo.com/video/$1"
         }
     , "soundcloud":
         { u: "(https?:\\/\\/soundcloud\\.com\\/\\S+)"
-        , e: '<iframe width="100%" height="166" scrolling="no" frameborder="no" src="https://w.soundcloud.com/player/?url=$1"></iframe>'
+        , e: function(url) {
+                return speedcore("iframe", { src: url
+                                           , width: "100%"
+                                           , height: 166
+                                           , scrolling: "no"
+                                           , frameborder: "no"
+                                           }, [])
+             }
         , s: "https://w.soundcloud.com/player/?url=$1"
         }
     , "audio":
         { u: "(https?:\\/\\/\\S+?\\.(mp3|ogg))"
-        , e: '<audio src="$1" controls width="320" height="32"></audio>'
+        , e: function(url) {
+                return speedcore("audio", { src: url
+                                          , controls: true
+                                          , width: 320
+                                          , height: 32
+                                          }, [])
+             }
         , s: "$1"
         }
     , "video":
         { u: "(https?:\\/\\/\\S+?\\.(ogv|webm|mp4))"
-        , e: '<video src="$1" controls muted autoplay loop style="max-width: 640px"></audio>'
+        , e: function(url) {
+                return speedcore("video", { src: url
+                                          , controls: true
+                                          , style: { maxWwidth: "640px" }
+                                          }, [])
+             }
         , s: "$1"
         }
     , "vine":
         { u: "https?:\\/\\/vine.co\\/v\\/([a-zA-Z0-9]+)"
-        , e: '<iframe class="vine-embed" src="https://vine.co/v/$1/embed/simple" width="480" height="480" frameborder="0"></iframe><script async src="//platform.vine.co/static/scripts/embed.js" charset="utf-8"></script>'
+        , e: function(url) {
+                return speedcore("iframe", { src: url
+                                           , className: "vine-embed"
+                                           , width: 480
+                                           , height: 480
+                                           , frameborder: 0
+                                           , style: { maxWidth: "640px" }
+                                           }, [])
+             }
         , s: "https://vine.co/v/$1/embed/simple"
         }
     }
@@ -1081,16 +1117,20 @@ function isPage(s){
 
 // {{{ High octave sexual moaning
 
-// replacer :: String -> String
+// replacer :: String -> Either Null Elem
 function replacer(x){
-    for (var k in embeds) {
-        var m = x.match(RegExp(embeds[k].u, 'g'))
+    var e = null
 
-        if (m) log(m.toString())
-        x = x.replace(RegExp(embeds[k].u, 'g'), embeds[k].e)
+    for (var k in embeds) {
+        var r = RegExp(embeds[k].u, 'g')
+        var m = x.match(r)
+
+        if (m) {
+            e = embeds[k].e(x.replace(r, embeds[k].s))
+        }
     }
 
-    return x
+    return e
 }
 
 // high :: Elem -> IO ()
@@ -1098,25 +1138,56 @@ function high(e){
     var as = e.getElementsByTagName("a")
 
     // each link
-    for (var j = 0; j < as.length; j++)
+    for (var j = 0; j < as.length; j++) {
         try {
             var ass = as[j]
-            var rd = replacer(ass.href)
+              , ene = replacer(ass.href)
 
-            if (rd !== ass.href) {
-                ass.outerHTML = rd
+            if (ene) {
+                log("ene.tagName: " + ene.tagName)
+                log("ene.hasAudio: " + ene.mozHasAudio)
 
-                if ( ass.tagName === "VIDEO"
-                && ( ass.mozHasAudio || ass.webkitAudioDecodedByteCount)) {
+                if (ene.tagName === "VIDEO") {
+                    ene.addEventListener("loadeddata", function(e) {
+                        log("moz: " + this.mozHasAudio)
+                        log("webkit: " + this.webkitAudioDecodedByteCount)
+                        var hasAudio = this.mozHasAudio === undefined
+                                     ? this.webkitAudioDecodedByteCount > 0
+                                     : this.mozHasAudio
 
-                    ass.loop = false
-                    ass.autoplay = false
+                        if (! hasAudio) {
+                            this.loop = true
+                            this.muted = true
+                            if (! localStorage["coup-z-webm"])
+                                this.autoplay = true
+
+                            else this.controls = true
+
+                            this.style.cursor = "pointer"
+                            this.title = "Toggle play"
+
+                            this.addEventListener("click", function(e) {
+                                if (this.controls) {
+                                    log("Controls")
+                                    this.controls = false
+
+                                } else {
+                                    log("No controls")
+                                    if (this.paused) this.play()
+                                    else this.pause()
+                                }
+                            })
+                        }
+                    })
                 }
+
+                ass.parentNode.replaceChild(ene, ass)
             }
 
         } catch(e) {
             log(e.toString())
         }
+    }
 }
 
 // octave :: IO ()
