@@ -1103,7 +1103,16 @@ function high(e){
             var ass = as[j]
             var rd = replacer(ass.href)
 
-            if (rd !== ass.href) ass.outerHTML = rd
+            if (rd !== ass.href) {
+                ass.outerHTML = rd
+
+                if ( ass.tagName === "VIDEO"
+                && ( ass.mozHasAudio || ass.webkitAudioDecodedByteCount)) {
+
+                    ass.loop = false
+                    ass.autoplay = false
+                }
+            }
 
         } catch(e) {
             log(e.toString())
