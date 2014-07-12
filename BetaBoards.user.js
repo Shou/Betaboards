@@ -1422,7 +1422,6 @@ function modify(k){ return function(){
 
 // readify :: String -> [a]
 function readify(k, a){
-    verb("readify " + k + ": " + localStorage[k])
     try {
         return JSON.parse(localStorage[k])
 
