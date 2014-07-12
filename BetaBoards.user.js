@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.6
+// @version         0.6.1
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -1422,7 +1422,10 @@ function modify(k){ return function(){
 
 // readify :: String -> [a]
 function readify(k, a){
-    try { return JSON.parse(localStorage[k])
+    verb("readify " + k + ": " + localStorage[k])
+    try {
+        return JSON.parse(localStorage[k])
+
     } catch(e) {
         debu(e.toString())
         return a
@@ -1442,7 +1445,6 @@ function textify(k) { return function(e) {
 
 // selectify :: String -> (Event -> IO ())
 function selectify(k) { return function(e) {
-    verb("Selectify " + k + ": " + this.selectedIndex)
     localStorage[k] = this.selectedIndex
 }}
 
@@ -1539,7 +1541,7 @@ function optionsUI(){
                 "td", { className: "c_desc", textContent: "WebM autoplay" }, [],
                 "td", {}, [
                     "input", { type: "checkbox"
-                             , checked: readify("coup-z-webm", true)
+                             , checked: def(false, localStorage["coup-z-webm"])
                              , onchange: togglify("coup-z-webm")
                              , title: "Autoplay WebM videos."
                              }, []
@@ -1573,10 +1575,7 @@ function optionsUI(){
                              , step: 0.1
                              , max: 1.0
                              , value: readify("beta-beep-volume", 0.5)
-                             , onchange: function(e) {
-                                this.title = this.value
-                                textify("beta-beep-volume")
-                               }
+                             , onchange: textify("beta-beep-volume")
                              }, []
                 ]
             ]
