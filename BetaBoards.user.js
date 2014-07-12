@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.5.2
+// @version         0.6
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -25,14 +25,12 @@
 //      - If no ellipsis exists, create it and add the current page number after.
 //      - Edit page number after ellipsis to match current page.
 //      - If there are pages after the ellipsis' neighbor, remove them.
-// - Add quote events on postUpdate
 
 // FIXME
-// - Attached files are quoted.
-// - Quick quote doesn't work on some posts.
-//      - Event should't be stripped because 'nothing' still happens instead of
-//        opening a new tab.
+// - Attached files are quoted
 // - postNums probably doesn't apply to updated posts
+// - sometimes posts are loaded with missing TRs
+// - ignored users only take up one TR which fucks up things
 
 // {{{ Global variables
 
@@ -552,6 +550,9 @@ function addPosts(html) {
         }
     })
 
+    if (newps.length > 0 && readify("beta-beep", false))
+        document.querySelector("#beta-beep").play()
+
     // Update time before update detecting
     if (newps.length > 0 || remps.length > 0) time = 10000
     else time = Math.min(160000, Math.floor(time * 1.5))
@@ -713,7 +714,7 @@ function updatePost(ne, oe) {
 }
 
 // addTopics :: String -> IO ()
-function addTopics(html){
+function addTopics(html) {
     var dom = lastUserlist()
     var d = insert(html)
     var x = focusThreads(d)
@@ -765,7 +766,7 @@ function addTopics(html){
 }
 
 // insert :: String -> IO Elem
-function insert(html){
+function insert(html) {
     var e = document.createElement("div")
     document.body.appendChild(e)
     e.innerHTML = html
@@ -774,13 +775,13 @@ function insert(html){
 }
 
 // remNextButton :: IO ()
-function remNextButton(){
+function remNextButton() {
     var ns = document.getElementsByClassName("c_next")
     map(function(n){ n.parentNode.parentNode.removeChild(n.parentNode) }, ns)
 }
 
 // postNums :: IO ()
-function postNums(){
+function postNums() {
     if (readify('beta-postnums', false)) {
         var rs = document.getElementsByClassName("c_postinfo")
 
@@ -794,7 +795,7 @@ function postNums(){
 
 // FIXME find all form elements with "name" and "value" attributes
 // getPostArgs :: Elem -> IO Obj
-function getPostArgs(t){
+function getPostArgs(t) {
     var ts = t.parentNode.parentNode.parentNode.getElementsByTagName("input")
     var o = {}
 
@@ -808,7 +809,7 @@ function getPostArgs(t){
 
 // | Highlight the elements that have actions during Ctrl mode.
 // highlightModeElems :: Bool -> IO ()
-function highlightModeElems(b){
+function highlightModeElems(b) {
     verb("Highlighting elements? " + b)
 
     var s = document.getElementById("beta-style-highlight")
@@ -827,7 +828,7 @@ function highlightModeElems(b){
 }
 
 // hideUserlists :: IO ()
-function hideUserlists(){
+function hideUserlists() {
     if (readify('beta-userlist', false)) {
         debu("Hiding userlists!")
         var s = document.createElement("style")
@@ -840,7 +841,7 @@ function hideUserlists(){
 }
 
 // toggleFloatingQR :: IO ()
-function toggleFloatingQR(){
+function toggleFloatingQR() {
     if (localStorage["beta-floating"]) delete localStorage["beta-floating"]
     else localStorage["beta-floating"] = '1'
 
@@ -848,7 +849,7 @@ function toggleFloatingQR(){
 }
 
 // floatQR :: IO ()
-function floatQR(){
+function floatQR() {
     var q = quickReply().parentNode.parentNode
 
     if (localStorage["beta-floating"]) {
@@ -871,10 +872,23 @@ function floatQR(){
         q.style = ""
         q.children[0].style = ""
     }
+
+    document.querySelector("#c_post textarea").style.height = localStorage["beta-post-size"]
+
+    var floato = new MutationObserver(function(ms) {
+            if (ms.length > 0) {
+                localStorage['beta-post-size'] =
+                    document.querySelector("#c_post textarea").style.height
+            }
+    })
+
+    var ops = { subtree: false, childList: false, attributes: true }
+
+    floato.observe(document.querySelector("#c_post textarea"), ops)
 }
 
 // moveQR :: Event -> IO ()
-function moveQR(e){
+function moveQR(e) {
     verb("Moving QR...")
     var q = quickReply().parentNode.parentNode
 
@@ -902,7 +916,7 @@ function moveQR(e){
 
 // | Add the initial events.
 // initEvents :: IO ()
-function initEvents(){
+function initEvents() {
     verb("Making init events...")
     var qr = quickReply()
 
@@ -941,7 +955,7 @@ function initEvents(){
 }
 
 // addSpoilerEvent :: Elem -> IO ()
-function addSpoilerEvent(tr){
+function addSpoilerEvent(tr) {
     var sps = tr.getElementsByClassName("spoiler_toggle")
 
     if (sps.length > 0) {
@@ -958,7 +972,7 @@ function addSpoilerEvent(tr){
 }
 
 // addQuoteEvent :: Elem -> IO ()
-function addQuoteEvent(tr){
+function addQuoteEvent(tr) {
     var rs = tr.children[1].children[1].children
     var q = rs[rs.length - 2]
     q.className += " beta-highlight"
@@ -999,7 +1013,7 @@ function addQuoteEvent(tr){
 }
 
 // addPostEvent :: IO ()
-function addPostEvent(){
+function addPostEvent() {
     var pt = document.querySelector("#c_post-text")
 
     pt.addEventListener("keydown", function(e){
@@ -1012,7 +1026,7 @@ function addPostEvent(){
 }
 
 // addQuickMsgEvent :: IO ()
-function addQuickMsgEvent(){
+function addQuickMsgEvent() {
     var qt = document.querySelector("#quickcompose")
 
     qt.addEventListener("keydown", function(e){
@@ -1024,9 +1038,24 @@ function addQuickMsgEvent(){
     })
 }
 
+// addHintEvents :: IO ()
+function addHintEvents() {
+    var es = document.querySelectorAll("#beta-settings input, #beta-settings select")
+
+    for (var i = 0; i < es.length; i++) {
+        es[i].addEventListener("mouseover", hint(es[i].title))
+        es[i].addEventListener("mouseout", function(e) {
+            var bp = document.querySelector("#beta-popup")
+            bp.parentNode.removeChild(bp)
+        })
+
+        es[i].title = ""
+    }
+}
+
 // | Scroll to the latest post.
 // autoScroll :: Int -> String -> IO ()
-function autoScroll(os, id){
+function autoScroll(os, id) {
     var scrolled = window.scrollY + window.innerHeight
     var offset = os - scrolled
 
@@ -1046,36 +1075,46 @@ function autoScroll(os, id){
 
 // {{{ Zeta
 
+// isLastPage :: Int -> IO Bool
+function isLastPage(n) {
+    var f = document.querySelector(".cat-pages li span").textContent
+    var l = document.querySelector(".cat-pages li:last-child").textContent
+
+    verb("f: " + f + ", l: " + (l - n))
+
+    return parseInt(f) >= parseInt(l) - n
+}
+
 // getPage :: IO Int
-function getPage(){
+function getPage() {
     var url = window.location.pathname.split('/')
 
     return parseInt(url[url.length - 2])
 }
 
 // getId :: IO String
-function getId(){
+function getId() {
     var url = window.location.pathname.split('/')
 
     return url[url.length - 3]
 }
 
 // getURL :: IO String
-function getURL(){
+function getURL() {
     var url = window.location.pathname.split('/').slice(0, 4).join('/')
 
     return url + '/' + cid + '/'
 }
 
 // getForum :: IO String
-function getForum(){
+function getForum() {
     var url = window.location.pathname.split('/')
 
     return url[1]
 }
 
 // isForum :: IO Bool
-function isForum(){
+function isForum() {
     var url = window.location.pathname.split('/')
 
     return url[2] === "forum"
@@ -1083,14 +1122,14 @@ function isForum(){
 
 
 // isTopic :: IO Bool
-function isTopic(){
+function isTopic() {
     var url = window.location.pathname.split('/')
 
     return url[2] === "topic"
 }
 
 // isHome :: IO Bool
-function isHome(){
+function isHome() {
     var url = window.location.pathname.split('/')
 
     verb("isHome: " + url[2] === "home")
@@ -1098,7 +1137,7 @@ function isHome(){
 }
 
 // isPost :: IO Bool
-function isPost(){
+function isPost() {
     var url = window.location.pathname.split('/')
 
     verb("isPost: " + url[2] === "post")
@@ -1106,7 +1145,7 @@ function isPost(){
 }
 
 // isPage :: IO Bool
-function isPage(s){
+function isPage(s) {
     var url = window.location.pathname.split('/')
 
     verb("isPost: " + url[2] === s)
@@ -1158,7 +1197,7 @@ function high(e){
                         if (! hasAudio) {
                             this.loop = true
                             this.muted = true
-                            if (! localStorage["coup-z-webm"])
+                            if (localStorage["coup-z-webm"])
                                 this.autoplay = true
 
                             else this.controls = true
@@ -1221,8 +1260,34 @@ function quotePyramid(s) {
 
 // }}}
 
+// TODO
+// hint :: String -> (Event -> IO ())
+function hint(s) { return function(e) {
+    var d = document.querySelector("#beta-popup")
+
+    if (! d) {
+        d = document.createElement("div")
+
+        d.style.position = "fixed"
+        d.style.border = "4px solid rgba(255,255,255,0.1)"
+        d.style.background = "rgba(0,0,0,0.5)"
+        d.style.maxWidth = "200px"
+        d.style.padding = "5px"
+        d.style.borderRadius = "1px 1px"
+
+        d.id = "beta-popup"
+
+        document.body.appendChild(d)
+    }
+
+    d.textContent = s
+
+    d.style.top = (e.clientY - 50) + "px"
+    d.style.left = (e.clientX + 20) + "px"
+}}
+
 // pageUpdate :: IO ()
-function pageUpdate(){
+function pageUpdate() {
     var b = readify('beta-loading', false)
 
     if (! b) {
@@ -1240,7 +1305,7 @@ function pageUpdate(){
 }
 
 // forumUpdate :: IO ()
-function forumUpdate(){
+function forumUpdate() {
     var b = readify('beta-refreshing', false)
 
     if (! b) {
@@ -1279,7 +1344,7 @@ function style() {
 }
 
 // ignoredUsers :: IO [String]
-function ignoredUsers(){
+function ignoredUsers() {
     try {
         return JSON.parse(localStorage['beta-ignoredusers'])
 
@@ -1290,7 +1355,7 @@ function ignoredUsers(){
 }
 
 // ignoredPosts :: IO Regex
-function ignoredPosts(){
+function ignoredPosts() {
     var ms = []
     var re = ""
 
@@ -1364,10 +1429,21 @@ function readify(k, a){
     }
 }
 
-// togglify :: IO ()
-function togglify(k){ return function(){
+// togglify :: String -> (Event -> IO ())
+function togglify(k) { return function(e) {
     if (this.checked) localStorage[k] = this.checked
     else delete localStorage[k]
+}}
+
+// textify :: String -> (Event -> IO ())
+function textify(k) { return function(e) {
+    localStorage[k] = this.value
+}}
+
+// selectify :: String -> (Event -> IO ())
+function selectify(k) { return function(e) {
+    verb("Selectify " + k + ": " + this.selectedIndex)
+    localStorage[k] = this.selectedIndex
 }}
 
 // optionsUI :: IO ()
@@ -1375,10 +1451,10 @@ function optionsUI(){
     verb("Creating options UI...")
     var main = document.getElementById("main")
 
-    var ui = speedcore("table", {}, [
+    var ui = speedcore("table", { id: "beta-settings" }, [
         "thead", {}, [
             "tr", {}, [
-                "th", { colSpan: "3", textContent: "Settings" }, []
+                "th", { colSpan: "6", textContent: "Settings" }, []
             ]
         ],
         "tbody", {}, [
@@ -1388,7 +1464,23 @@ function optionsUI(){
                     "input", { type: "checkbox"
                              , checked: readify('beta-loading', false)
                              , onchange: togglify('beta-loading')
+                             , title: "Prevent replies from being loaded and "
+                                    + "extending the page automatically."
                              }, []
+                ],
+                "td", { className: "c_desc", textContent: "Early reply loading" }, [],
+                "td", {}, [
+                    "select", { id: "beta-init-load"
+                              , onchange: selectify('beta-init-load')
+                              , title: "How many pages behind the last to "
+                                     + "start loading replies on."
+                              }, [
+                        "option", { textContent: "0" }, [],
+                        "option", { textContent: "2" }, [],
+                        "option", { textContent: "5" }, [],
+                        "option", { textContent: "10" }, [],
+                        "option", { textContent: "∞" }, []
+                    ]
                 ]
             ],
             "tr", {}, [
@@ -1397,6 +1489,8 @@ function optionsUI(){
                     "input", { type: "checkbox"
                              , checked: readify('beta-refreshing', false)
                              , onchange: togglify('beta-refreshing')
+                             , title: "Prevent topics from being refreshed "
+                                    + "automatically."
                              }, []
                 ]
             ],
@@ -1406,6 +1500,9 @@ function optionsUI(){
                     "input", { type: "checkbox"
                              , checked: readify('beta-ignoring', false)
                              , onchange: togglify('beta-ignoring')
+                             , title: "Disable the full ignore feature; only "
+                                    + "matters if you've got something added "
+                                    + "to the lists."
                              }, []
                 ]
             ],
@@ -1415,6 +1512,8 @@ function optionsUI(){
                     "input", { type: "checkbox"
                              , checked: readify('beta-quotes', false)
                              , onchange: togglify('beta-quotes')
+                             , title: "Prevent quotes nested deeper than the "
+                                    + "first level from collapsing."
                              }, []
                 ]
             ],
@@ -1424,20 +1523,70 @@ function optionsUI(){
                     "input", { type: "checkbox"
                              , checked: readify('beta-postnums', false)
                              , onchange: togglify('beta-postnums')
+                             , title: "Hide the post numbers attached to posts."
                              }, []
-                ]
-            ],
-            "tr", {}, [
+                ],
                 "td", { className: "c_desc", textContent: "Hide userlist" }, [],
                 "td", {}, [
                     "input", { type: "checkbox"
                              , checked: readify('beta-userlist', false)
                              , onchange: togglify('beta-userlist')
+                             , title: "Hide userlists on any page."
+                             }, []
+                ]
+            ],
+            "tr", {}, [
+                "td", { className: "c_desc", textContent: "WebM autoplay" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify("coup-z-webm", true)
+                             , onchange: togglify("coup-z-webm")
+                             , title: "Autoplay WebM videos."
+                             }, []
+                ]
+            ],
+            "tr", {}, [
+                "td", { className: "c_desc", textContent: "Beep on new replies" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify("beta-beep", false)
+                             , onchange: togglify("beta-beep")
+                             , title: "Play a beep notification sound when "
+                                    + "there are new replies."
+                             }, []
+                ],
+                "td", { className: "c_desc", textContent: "Beep URL" }, [],
+                "td", {}, [
+                    "input", { type: "text"
+                             , value: def( "http://a.pomf.se/nhmrwe.ogg"
+                                         , localStorage["beta-beep-url"]
+                                         )
+                             , onchange: textify("beta-beep-url")
+                             , title: "The source URL of the beep notification "
+                                    + "audio file."
+                             }, []
+                ],
+                "td", { className: "c_desc", textContent: "Beep volume" }, [],
+                "td", {}, [
+                    "input", { type: "range"
+                             , min: 0.1
+                             , step: 0.1
+                             , max: 1.0
+                             , value: readify("beta-beep-volume", 0.5)
+                             , onchange: function(e) {
+                                this.title = this.value
+                                textify("beta-beep-volume")
+                               }
                              }, []
                 ]
             ]
         ]
     ])
+
+    var se = ui.querySelectorAll("select")
+
+    for (var i = 0; i < se.length; i++)
+        se[i].selectedIndex = readify(se[i].id, 2)
 
     main.appendChild(ui)
 }
@@ -1450,7 +1599,7 @@ function ignoreUI(){
     var ui = speedcore("table", {}, [
         "thead", {}, [
             "tr", {}, [
-                "th", { colSpan: "3", textContent: "Ignore users" }, []
+                "th", { colSpan: "3", textContent: "Full user ignoral" }, []
             ]
         ],
         "tbody", {}, [
@@ -1490,6 +1639,22 @@ function ignoreUI(){
     main.appendChild(ui)
 }
 
+// beepAudio
+function beepAudio() {
+    var url = def("http://a.pomf.se/nhmrwe.ogg", localStorage["beta-beep-url"])
+      , aud = document.createElement("audio")
+
+    aud.src = url
+    aud.volume = readify("beta-beep-volume", 0.5)
+    aud.id = "beta-beep"
+    aud.name = "beta-beep"
+    aud.style.width = "1px"
+    aud.style.height = "1px"
+    aud.style.visibility = "hidden"
+
+    document.body.appendChild(aud)
+}
+
 // addHideButtons :: IO ()
 function addHideButton(x){
     return null
@@ -1516,13 +1681,20 @@ function main(){
 
         ignore()
 
+        beepAudio()
+
         var f = function(){
             pageUpdate()
 
             loop = setTimeout(f, time)
         }
 
-        loop = setTimeout(f, time)
+        var bp = readify('beta-init-load', 2)
+          , lp = isLastPage(trace([0, 2, 5, 10, NaN][bp]))
+
+        verb("bp " + bp + ", lp: " + lp)
+
+        if (lp || bp === 4) loop = setTimeout(f, time)
 
     } else if (isPage("post")) {
         addPostEvent()
@@ -1548,6 +1720,9 @@ function main(){
     } else if (isHome()) {
         optionsUI()
         ignoreUI()
+
+        // Hint events
+        addHintEvents()
 
     }
 }
