@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.6.1
+// @version         0.7.0
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -122,11 +122,16 @@ var embeds =
                                            , width: 480
                                            , height: 480
                                            , frameborder: 0
-                                           , style: { maxWidth: "640px" }
                                            }, [])
              }
         , s: "https://vine.co/v/$1/embed/simple"
         }
+    }
+
+// defaults :: Object String a
+var defaults =
+    { "beta-init-load": 2
+    , "beta-load-amount": 0
     }
 
 // }}}
@@ -336,6 +341,38 @@ function def(x, y) {
 // slice :: [a] -> [a]
 var slice = Array.prototype.slice
 
+// modifiy :: String -> (IO ())
+function modify(k){ return function(){
+    localStorage[k] = JSON.stringify(this.value.split(','))
+}}
+
+// readify :: String -> [a]
+function readify(k, a){
+    try {
+        return JSON.parse(localStorage[k])
+
+    } catch(e) {
+        debu(e.toString())
+        return a
+    }
+}
+
+// togglify :: String -> (Event -> IO ())
+function togglify(k) { return function(e) {
+    if (this.checked) localStorage[k] = this.checked
+    else delete localStorage[k]
+}}
+
+// textify :: String -> (Event -> IO ())
+function textify(k) { return function(e) {
+    localStorage[k] = this.value
+}}
+
+// selectify :: String -> (Event -> IO ())
+function selectify(k) { return function(e) {
+    localStorage[k] = this.selectedIndex
+}}
+
 // }}}
 
 // {{{ XHR
@@ -501,15 +538,6 @@ function addIgnoredIds(xs) {
     return tmp
 }
 
-// toList :: List a x => a -> [x]
-function toList(xs) {
-    var tmp = []
-
-    for (var i = 0; i < xs.length; i++) tmp.push(xs[i])
-
-    return tmp
-}
-
 // fiveSiblings :: Elem -> [Elem]
 function fiveSiblings(e) {
     var es = [ e, e.nextElementSibling
@@ -519,6 +547,41 @@ function fiveSiblings(e) {
              ]
 
     return es
+}
+
+// removeOld :: IO ()
+function removeOld() {
+    var oids = document.querySelectorAll("tr[id^='post-']")
+      , tvib = document.querySelector("#topic_viewer > tbody")
+      , amount = [NaN, 25, 50, 100, 250][readify("beta-load-amount", 0)]
+      , height = 0
+      , roidslen = oids.length
+
+    if (amount !== NaN) {
+        // Negative of how many posts to keep, slice keeps that amount backwards
+        var ooids = oids.slice(0, oids.length > amount ? amount : 0)
+
+        debu("Old removed posts: " + ooids.length)
+        ooids.map(function(e) {
+            var es
+            if (! e.querySelector(".ignored"))
+                es = fiveSiblings(e)
+            else es = [e]
+
+                for (var i = 0; i < es.length; i++) {
+                    height += es[i].offsetHeight
+                    tvib.removeChild(es[i])
+                }
+
+        })
+
+        if (ooids.length > 0) iid = cid
+        roidslen = oids.length - ooids.length
+    }
+
+    window.scrollBy(0, height * -1)
+
+    return roidslen
 }
 
 // addPosts :: String -> IO ()
@@ -538,7 +601,7 @@ function addPosts(html) {
       // t_viewer body
       , tvib = document.querySelector("#topic_viewer > tbody")
       // oids without previous pages; newly old IDs
-      , noids = toList(oids).slice(Math.floor(oids.length / 25) * 25)
+      , noids = oids.slice(Math.floor(oids.length / 25) * 25)
 
     debu( "oids: " + oids.length + ", nids: " + nids.length + ", noids: "
         + noids.length
@@ -614,9 +677,11 @@ function addPosts(html) {
 
     octave()
 
+    var roidslen = removeOld()
+
     // TODO test against deleted posts, might get stuck on page from < 25 posts
     // Switch to new page
-    cid = iid + Math.floor(oids.length / 25)
+    cid = iid + Math.floor(roidslen / 25)
 
     debu(cid)
 
@@ -952,6 +1017,31 @@ function moveQR(e) {
     )) + "px"
 }
 
+// hint :: String -> (Event -> IO ())
+function hint(s) { return function(e) {
+    var d = document.querySelector("#beta-popup")
+
+    if (! d) {
+        d = document.createElement("div")
+
+        d.style.position = "fixed"
+        d.style.border = "4px solid rgba(255,255,255,0.1)"
+        d.style.background = "rgba(0,0,0,0.5)"
+        d.style.maxWidth = "200px"
+        d.style.padding = "5px"
+        d.style.borderRadius = "1px 1px"
+
+        d.id = "beta-popup"
+
+        document.body.appendChild(d)
+    }
+
+    d.textContent = s
+
+    d.style.top = (e.clientY - 50) + "px"
+    d.style.left = (e.clientX + 20) + "px"
+}}
+
 // }}}
 
 // {{{ Events
@@ -1284,32 +1374,6 @@ function quotePyramid(s) {
 
 // }}}
 
-// TODO
-// hint :: String -> (Event -> IO ())
-function hint(s) { return function(e) {
-    var d = document.querySelector("#beta-popup")
-
-    if (! d) {
-        d = document.createElement("div")
-
-        d.style.position = "fixed"
-        d.style.border = "4px solid rgba(255,255,255,0.1)"
-        d.style.background = "rgba(0,0,0,0.5)"
-        d.style.maxWidth = "200px"
-        d.style.padding = "5px"
-        d.style.borderRadius = "1px 1px"
-
-        d.id = "beta-popup"
-
-        document.body.appendChild(d)
-    }
-
-    d.textContent = s
-
-    d.style.top = (e.clientY - 50) + "px"
-    d.style.left = (e.clientX + 20) + "px"
-}}
-
 // pageUpdate :: IO ()
 function pageUpdate() {
     var b = readify('beta-loading', false)
@@ -1439,37 +1503,7 @@ function ignore(){
     }
 }
 
-// modifiy :: String -> (IO ())
-function modify(k){ return function(){
-    localStorage[k] = JSON.stringify(this.value.split(','))
-}}
-
-// readify :: String -> [a]
-function readify(k, a){
-    try {
-        return JSON.parse(localStorage[k])
-
-    } catch(e) {
-        debu(e.toString())
-        return a
-    }
-}
-
-// togglify :: String -> (Event -> IO ())
-function togglify(k) { return function(e) {
-    if (this.checked) localStorage[k] = this.checked
-    else delete localStorage[k]
-}}
-
-// textify :: String -> (Event -> IO ())
-function textify(k) { return function(e) {
-    localStorage[k] = this.value
-}}
-
-// selectify :: String -> (Event -> IO ())
-function selectify(k) { return function(e) {
-    localStorage[k] = this.selectedIndex
-}}
+// {{{ UI
 
 // optionsUI :: IO ()
 function optionsUI(){
@@ -1505,6 +1539,20 @@ function optionsUI(){
                         "option", { textContent: "5" }, [],
                         "option", { textContent: "10" }, [],
                         "option", { textContent: "∞" }, []
+                    ]
+                ],
+                "td", { className: "c_desc", textContent: "Early reply loading" }, [],
+                "td", {}, [
+                    "select", { id: "beta-load-amount"
+                              , onchange: selectify("beta-load-amount")
+                              , title: "Maximum replies to have loaded. "
+                                     + "Removes older replies to make room."
+                              }, [
+                        "option", { textContent: "∞" }, [],
+                        "option", { textContent: "25" }, [],
+                        "option", { textContent: "50" }, [],
+                        "option", { textContent: "100" }, [],
+                        "option", { textContent: "250" }, []
                     ]
                 ]
             ],
@@ -1608,7 +1656,7 @@ function optionsUI(){
     var se = ui.querySelectorAll("select")
 
     for (var i = 0; i < se.length; i++)
-        se[i].selectedIndex = readify(se[i].id, 2)
+        se[i].selectedIndex = readify(se[i].id, defaults[se[i].id])
 
     main.appendChild(ui)
 }
@@ -1660,6 +1708,8 @@ function ignoreUI(){
 
     main.appendChild(ui)
 }
+
+// }}}
 
 // beepAudio
 function beepAudio() {
