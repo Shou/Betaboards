@@ -109,7 +109,7 @@ var embeds =
         , e: function(url) {
                 return speedcore("video", { src: url
                                           , controls: true
-                                          , style: { maxWwidth: "640px" }
+                                          , style: { maxWidth: "640px" }
                                           }, [])
              }
         , s: "$1"
@@ -501,6 +501,15 @@ function addIgnoredIds(xs) {
     return tmp
 }
 
+// toList :: List a x => a -> [x]
+function toList(xs) {
+    var tmp = []
+
+    for (var i = 0; i < xs.length; i++) tmp.push(xs[i])
+
+    return tmp
+}
+
 // fiveSiblings :: Elem -> [Elem]
 function fiveSiblings(e) {
     var es = [ e, e.nextElementSibling
@@ -512,7 +521,6 @@ function fiveSiblings(e) {
     return es
 }
 
-// FIXME add ignored posts to oids and nids
 // addPosts :: String -> IO ()
 function addPosts(html) {
     verb("Initiating addPosts...")
@@ -530,7 +538,7 @@ function addPosts(html) {
       // t_viewer body
       , tvib = document.querySelector("#topic_viewer > tbody")
       // oids without previous pages; newly old IDs
-      , noids = oids.slice(Math.floor(oids.length / 25) * 25)
+      , noids = toList(oids).slice(Math.floor(oids.length / 25) * 25)
 
     debu( "oids: " + oids.length + ", nids: " + nids.length + ", noids: "
         + noids.length
