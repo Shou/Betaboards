@@ -133,7 +133,7 @@ var embeds =
 
 // {{{ Debug
 
-var verbose = true
+var verbose = false
 var debug = true
 
 // debug :: a -> IO ()
@@ -201,6 +201,11 @@ Array.prototype.inter = function(a) {
 Array.prototype.mapDiff = function(f, xs) {
     xs = xs.map(f)
     return this.filter(function(x) { return xs.indexOf(f(x)) < 0 })
+}
+
+Array.prototype.mapInter = function(f, xs) {
+    xs = xs.map(f)
+    return this.filter(function(x) { return xs.indexOf(f(x)) != -1 })
 }
 
 // NodeList map
@@ -479,7 +484,35 @@ function usernamePost(e){
 
 // {{{ DOM Modifiers
 
-// XXX deleted post removal working?
+// addIgnoredIds :: [Elem] -> IO ()
+function addIgnoredIds(xs) {
+    var tmp = []
+
+    for (var i = 0; i < xs.length; i++) {
+        if (xs[i].className === "ignored") {
+            var a = xs[i].querySelector("a[href*='/single/']")
+            var tr = xs[i].parentNode
+            tr.id = "post-" + a.href.match(/\/single\/\?p=(\d+)/)[1]
+            tmp.push(tr)
+
+        } else tmp.push(xs[i])
+    }
+
+    return tmp
+}
+
+// fiveSiblings :: Elem -> [Elem]
+function fiveSiblings(e) {
+    var es = [ e, e.nextElementSibling
+             , e.nextElementSibling.nextElementSibling
+             , e.nextElementSibling.nextElementSibling.nextElementSibling
+             , e.nextElementSibling.nextElementSibling.nextElementSibling.nextElementSibling
+             ]
+
+    return es
+}
+
+// FIXME add ignored posts to oids and nids
 // addPosts :: String -> IO ()
 function addPosts(html) {
     verb("Initiating addPosts...")
@@ -490,7 +523,7 @@ function addPosts(html) {
       , doc = par.parseFromString(html, "text/html")
       // Old and new posts
       , oids = document.querySelectorAll("tr[id^='post-']")
-      , nids = doc.querySelectorAll("tr[id^='post-']")
+      , nids = addIgnoredIds(doc.querySelectorAll("tr[id^='post-'], .ignored"))
       // Old and new userlists
       , ous = document.querySelector(".c_view")
       , nus = doc.querySelector(".c_view")
@@ -499,9 +532,11 @@ function addPosts(html) {
       // oids without previous pages; newly old IDs
       , noids = oids.slice(Math.floor(oids.length / 25) * 25)
 
-    verb( "oids: " + oids.length + ", nids: " + nids.length + ", noids: "
+    debu( "oids: " + oids.length + ", nids: " + nids.length + ", noids: "
         + noids.length
         )
+
+    debu(noids)
 
     // Replace userlist
     ous.parentNode.replaceChild(nus, ous)
@@ -513,33 +548,28 @@ function addPosts(html) {
       , oldps = nids.mapInter(function(e) { return e.id }, oids)
 
     // Remove deleted posts
-    verb("Removed posts: " + remps.length)
+    debu("Removed posts: " + remps.length)
     remps.map(function(e) {
-        // TODO generalize code
-        var es = [ e, e.nextElementSibling
-                 , e.nextElementSibling.nextElementSibling
-                 , e.nextElementSibling.nextElementSibling.nextElementSibling
-                 , e.nextElementSibling.nextElementSibling.nextElementSibling.nextElementSibling
-                 ]
+        var es
+        if (! e.querySelector(".ignored"))
+            es = fiveSiblings(e)
+        else es = [e]
 
-        // TODO remove only DELETED posts
-        //          should work now???
-        for (var i = 0; i < 5; i++) {
-            tvib.removeChild(e)
-        }
+            for (var i = 0; i < es.length; i++) {
+                tvib.removeChild(es[i])
+            }
+
     })
 
     // Add new posts
-    verb("New posts: " + newps.length)
+    debu("New posts: " + newps.length)
     newps.map(function(e) {
-        // TODO generalize code
-        var es = [ e, e.nextElementSibling
-                 , e.nextElementSibling.nextElementSibling
-                 , e.nextElementSibling.nextElementSibling.nextElementSibling
-                 , e.nextElementSibling.nextElementSibling.nextElementSibling.nextElementSibling
-                 ]
+        var es
+        if (! e.querySelector(".ignored"))
+            es = fiveSiblings(e)
+        else es = [e]
 
-        for (var i = 0; i < 5; i++) {
+        for (var i = 0; i < es.length; i++) {
             tvib.insertBefore(es[i], tvib.querySelector(".c_view").parentNode)
 
             // Add spoiler event
@@ -558,18 +588,20 @@ function addPosts(html) {
     else time = Math.min(160000, Math.floor(time * 1.5))
 
     // Update old posts
-    verb("Old posts: " + oldps.length)
+    debu("Old posts: " + oldps.length)
     oldps.map(function(e) {
-        var eq = document.querySelector('#' + e.id)
-          , ne = e.nextElementSibling.children[1]
-          , oe = eq.nextElementSibling.children[1]
+        if (! e.querySelector(".ignored")) {
+            var eq = document.querySelector('#' + e.id)
+              , ne = e.nextElementSibling.children[1]
+              , oe = eq.nextElementSibling.children[1]
 
-        // Replace timestamp
-        eq.parentNode.replaceChild(e, eq)
+            // Replace timestamp
+            eq.parentNode.replaceChild(e, eq)
 
-        verb(e.textContent.replace(/\s+/g, ' '))
+            verb(e.textContent.replace(/\s+/g, ' '))
 
-        updatePost(ne, oe)
+            updatePost(ne, oe)
+        }
     })
 
     octave()
@@ -578,7 +610,9 @@ function addPosts(html) {
     // Switch to new page
     cid = iid + Math.floor(oids.length / 25)
 
-    } catch(e) { debu(e.toString()) }
+    debu(cid)
+
+    } catch(e) { throw e }
 }
 
 // TODO generalize the SHIT out of this you B I T C H
@@ -949,9 +983,10 @@ function initEvents() {
     })
 
     // Quote events
-    var trs = inittrs()
-    for (var i = 0; i < trs.length; i++)
-        if (i % 5 == 3) addQuoteEvent(trs[i])
+    var oids = document.querySelectorAll("tr[id^='post-'] + tr + tr + tr")
+    for (var i = 0; i < oids.length; i++) {
+        addQuoteEvent(oids[i])
+    }
 }
 
 // addSpoilerEvent :: Elem -> IO ()
@@ -973,8 +1008,7 @@ function addSpoilerEvent(tr) {
 
 // addQuoteEvent :: Elem -> IO ()
 function addQuoteEvent(tr) {
-    var rs = tr.children[1].children[1].children
-    var q = rs[rs.length - 2]
+    var q = tr.querySelector(".c_footicons .right [href*='/post/']")
     q.className += " beta-highlight"
 
     q.addEventListener("click", function(e){
@@ -1051,24 +1085,6 @@ function addHintEvents() {
 
         es[i].title = ""
     }
-}
-
-// | Scroll to the latest post.
-// autoScroll :: Int -> String -> IO ()
-function autoScroll(os, id) {
-    var scrolled = window.scrollY + window.innerHeight
-    var offset = os - scrolled
-
-
-    if (offset >= 500) ascroll = false
-    else if ((offset < 500 || ascroll) && id !== undefined) {
-        verb("Scrolling to post " + id)
-
-        ascroll = true
-
-        window.location.href = window.location.pathname + '#' + id
-
-    } else if (id === undefined) verb("ID is undefined.")
 }
 
 // }}}
@@ -1681,6 +1697,8 @@ function main(){
 
         beepAudio()
 
+        addIgnoredIds(document.querySelectorAll(".ignored"))
+
         var f = function(){
             pageUpdate()
 
@@ -1688,7 +1706,7 @@ function main(){
         }
 
         var bp = readify('beta-init-load', 2)
-          , lp = isLastPage(trace([0, 2, 5, 10, NaN][bp]))
+          , lp = isLastPage([0, 2, 5, 10, NaN][bp])
 
         verb("bp " + bp + ", lp: " + lp)
 
