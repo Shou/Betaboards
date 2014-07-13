@@ -1541,7 +1541,7 @@ function optionsUI(){
                         "option", { textContent: "∞" }, []
                     ]
                 ],
-                "td", { className: "c_desc", textContent: "Early reply loading" }, [],
+                "td", { className: "c_desc", textContent: "Max reply load" }, [],
                 "td", {}, [
                     "select", { id: "beta-load-amount"
                               , onchange: selectify("beta-load-amount")
