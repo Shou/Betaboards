@@ -559,7 +559,8 @@ function removeOld() {
 
     if (amount !== NaN) {
         // Negative of how many posts to keep, slice keeps that amount backwards
-        var ooids = oids.slice(0, oids.length > amount ? amount : 0)
+        var n = oids.length - amount
+        var ooids = oids.slice(0, n > 0 ? n : 0)
 
         debu("Old removed posts: " + ooids.length)
         ooids.map(function(e) {
@@ -575,6 +576,9 @@ function removeOld() {
 
         })
 
+        // FIXME pages are ADDED when NOT NEEDED FUCK
+        // - ONLY remove 25 replies at a time?
+        //      - slice(0, Math.ceil(n / 25) * 25)
         if (ooids.length > 0) iid = cid
         roidslen = oids.length - ooids.length
     }
@@ -1191,12 +1195,20 @@ function addHintEvents() {
 
 // isLastPage :: Int -> IO Bool
 function isLastPage(n) {
-    var f = document.querySelector(".cat-pages li span").textContent
-    var l = document.querySelector(".cat-pages li:last-child").textContent
+    var f
+    var l
+    
+    try {
+        f = document.querySelector(".cat-pages li span").textContent
+        l = document.querySelector(".cat-pages li:last-child").textContent
 
-    verb("f: " + f + ", l: " + (l - n))
+        verb("f: " + f + ", l: " + (l - n))
 
-    return parseInt(f) >= parseInt(l) - n
+        return parseInt(f) >= parseInt(l) - n
+
+    } catch(e) {
+        verb("isLastPage: " + e.toString())
+        return true
 }
 
 // getPage :: IO Int
