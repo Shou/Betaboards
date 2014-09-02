@@ -1036,28 +1036,30 @@ function moveQR(e) {
 
 // hint :: String -> (Event -> IO ())
 function hint(s) { return function(e) {
-    var d = document.querySelector("#beta-popup")
+    if (! readify("beta-hints", false)) {
+        var d = document.querySelector("#beta-popup")
 
-    if (! d) {
-        d = document.createElement("div")
+        if (! d) {
+            d = document.createElement("div")
 
-        d.style.position = "fixed"
-        d.style.border = "4px solid rgba(255,255,255,0.1)"
-        d.style.background = "rgba(0,0,0,0.7)"
-        d.style.maxWidth = "200px"
-        d.style.padding = "5px"
-        d.style.borderRadius = "1px 1px"
-        d.style.color = "#fefefe"
+            d.style.position = "fixed"
+            d.style.border = "4px solid rgba(255,255,255,0.1)"
+            d.style.background = "rgba(0,0,0,0.7)"
+            d.style.maxWidth = "200px"
+            d.style.padding = "5px"
+            d.style.borderRadius = "1px 1px"
+            d.style.color = "#fefefe"
 
-        d.id = "beta-popup"
+            d.id = "beta-popup"
 
-        document.body.appendChild(d)
+            document.body.appendChild(d)
+        }
+
+        d.textContent = s
+
+        d.style.top = (e.clientY - 50) + "px"
+        d.style.left = (e.clientX + 20) + "px"
     }
-
-    d.textContent = s
-
-    d.style.top = (e.clientY - 50) + "px"
-    d.style.left = (e.clientX + 20) + "px"
 }}
 
 // }}}
@@ -1688,6 +1690,14 @@ function optionsUI(){
                              , checked: readify('beta-userlist', false)
                              , onchange: togglify('beta-userlist')
                              , title: "Hide userlists on any page."
+                             }, []
+                ],
+                "td", { className: "c_desc", textContent: "Hide hints" }, [],
+                "td", {}, [
+                    "input", { type: "checkbox"
+                             , checked: readify('beta-hints', false)
+                             , onchange: togglify('beta-hints')
+                             , title: "Hide pop-up hints on any page."
                              }, []
                 ]
             ],
