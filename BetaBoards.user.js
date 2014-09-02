@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.6
+// @version         0.7
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
 // @copyright       2013, Shou
@@ -373,6 +373,14 @@ function selectify(k) { return function(e) {
     localStorage[k] = this.selectedIndex
 }}
 
+// Set temporary class name; useful for temporary styles.
+function tempClassName(e, cn, t) {
+    e.className += ' ' + cn
+    setTimeout(function() {
+        e.className = e.className.replace(' ' + cn, "")
+    }, t)
+}
+
 // }}}
 
 // {{{ XHR
@@ -399,8 +407,6 @@ function request(url, f) {
 function reply(t) {
     verb("Replying...")
 
-    posting = true
-
     var url = '/' + getForum() + "/post/"
     var oargs = getPostArgs(t)
     var args = ""
@@ -421,6 +427,9 @@ function reply(t) {
             if (readify('beta-loading', true)) addPosts(xhr.responseText)
             t.value = ""
 
+            t.className = t.className.replace(/ beta-loading/, "")
+            tempClassName(t, "beta-load-ok", 2000)
+
             posting = false
 
         } else if (xhr.readyState === 4) posting = false
@@ -428,16 +437,20 @@ function reply(t) {
         else debu(xhr)
     }
 
-    // timeout posting
-    setTimeout(function(){ posting = false }, 10000)
-
     // Don't post if it's empty.
     if (str.length > 0) {
         xhr.open("POST", url, true)
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
         xhr.send(args)
 
-    } else verb("Empty reply.")
+        tempClassName(t, "beta-loading", 10000)
+
+        posting = true
+
+        // timeout posting
+        setTimeout(function() { posting = false }, 10000)
+
+    } else tempClassName(t, "beta-load-fail", 2000)
 }
 
 // }}}
@@ -1030,10 +1043,11 @@ function hint(s) { return function(e) {
 
         d.style.position = "fixed"
         d.style.border = "4px solid rgba(255,255,255,0.1)"
-        d.style.background = "rgba(0,0,0,0.5)"
+        d.style.background = "rgba(0,0,0,0.7)"
         d.style.maxWidth = "200px"
         d.style.padding = "5px"
         d.style.borderRadius = "1px 1px"
+        d.style.color = "#fefefe"
 
         d.id = "beta-popup"
 
@@ -1057,7 +1071,10 @@ function initEvents() {
     var qr = quickReply()
 
     qr.className += " beta-highlight"
+    qr.nextElementSibling.title =
+        "Ctrl-Enter to post while focused on the textfield."
 
+    // Ctrl mode
     document.body.addEventListener("keydown", function(e){
         if (e.ctrlKey) {
             verb("Ctrl true")
@@ -1070,6 +1087,8 @@ function initEvents() {
             setTimeout(function(){ highlightModeElems(false) }, 0)
         }
     })
+
+    // Post submit
     qr.addEventListener("keydown", function(e){
         if (e.ctrlKey && e.keyCode === 13 && !posting) reply(this)
         else if (posting) verb("Mutlipost avoided.")
@@ -1080,8 +1099,18 @@ function initEvents() {
         if (!posting) reply(this.previousElementSibling)
         else verb("Multipost avoided.")
     })
+
+    // Float QR
     qr.addEventListener("click", function(e){
         if (e.ctrlKey && e.button === 0) toggleFloatingQR()
+    })
+
+    // Hint
+    qr.nextElementSibling.addEventListener( "mouseover"
+                                          , hint(qr.nextElementSibling.title))
+    qr.nextElementSibling.addEventListener("mouseout", function(e) {
+        var bp = document.querySelector("#beta-popup")
+        bp.parentNode.removeChild(bp)
     })
 
     // Quote events
@@ -1112,6 +1141,14 @@ function addSpoilerEvent(tr) {
 function addQuoteEvent(tr) {
     var q = tr.querySelector(".c_footicons .right [href*='/post/']")
     q.className += " beta-highlight"
+    q.title = "Ctrl-click to quick quote."
+
+    // Hint
+    q.addEventListener("mouseover", hint(q.title))
+    q.addEventListener("mouseout", function(e) {
+        var bp = document.querySelector("#beta-popup")
+        bp.parentNode.removeChild(bp)
+    })
 
     q.addEventListener("click", function(e){
         if (e.ctrlKey && e.button === 0) {
@@ -1159,6 +1196,14 @@ function addPostEvent() {
             pf.submit()
         }
     })
+    var btn = document.querySelector("[accesskey='s'][type='submit']")
+    btn.title = "Ctrl-Enter to post while focused on the textfield."
+
+    btn.addEventListener("mouseover", hint(btn.title))
+    btn.addEventListener("mouseout", function(e) {
+        var bp = document.querySelector("#beta-popup")
+        bp.parentNode.removeChild(bp)
+    })
 }
 
 // addQuickMsgEvent :: IO ()
@@ -1172,11 +1217,20 @@ function addQuickMsgEvent() {
             pf.submit()
         }
     })
+
+    var btn = document.querySelector("[accesskey='s'][type='submit']")
+    btn.title = "Ctrl-Enter to post while focused on the textfield."
+
+    btn.addEventListener("mouseover", hint(btn.title))
+    btn.addEventListener("mouseout", function(e) {
+        var bp = document.querySelector("#beta-popup")
+        bp.parentNode.removeChild(bp)
+    })
 }
 
 // addHintEvents :: IO ()
 function addHintEvents() {
-    var es = document.querySelectorAll("#beta-settings input, #beta-settings select")
+    var es = document.querySelectorAll("[title]")
 
     for (var i = 0; i < es.length; i++) {
         es[i].addEventListener("mouseover", hint(es[i].title))
@@ -1197,7 +1251,7 @@ function addHintEvents() {
 function isLastPage(n) {
     var f
     var l
-    
+
     try {
         f = document.querySelector(".cat-pages li span").textContent
         l = document.querySelector(".cat-pages li:last-child").textContent
@@ -1209,6 +1263,7 @@ function isLastPage(n) {
     } catch(e) {
         verb("isLastPage: " + e.toString())
         return true
+    }
 }
 
 // getPage :: IO Int
@@ -1435,7 +1490,24 @@ function style() {
         csss.push("a[href*=\"" + ids[i] + "\"]")
 
     css = csss.join(',')
-    css += " { display: none !important }"
+    if (css.length > 0) css += " { display: none !important }"
+
+    css += ".beta-loading { animation: loading 2s infinite; border-width: 4px; "
+         + "border-style: solid } "
+         + ".beta-load-ok { animation: success 2s infinite; border-width: 4px; "
+         + "border-style: solid }"
+         + ".beta-load-fail { animation: failure 2s infinite; border-width: 4px; "
+         + "border-style: solid }"
+         + "@keyframes loading { 0% { border-color: transparent } 50% { "
+         + "border-color: #16B } 100% { border-color: transparent } }"
+         + "@keyframes success { 20% { border-color: lime } 30% { border-color: "
+         + "lime } 31% { border-color: transparent } 36% { border-color: "
+         + "transparent } 37% { border-color: lime } 57% { border-color: lime } }"
+         + "@keyframes failure { 20% { border-color: crimson } 30% { "
+         + "border-color: crimson } 31% { border-color: transparent } 36% {"
+         + "border-color: transparent } 37% { border-color: crimson } 57% {"
+         + "border-color: crimson } }"
+
     e.innerHTML = css
 
     document.body.appendChild(e)
@@ -1558,7 +1630,8 @@ function optionsUI(){
                     "select", { id: "beta-load-amount"
                               , onchange: selectify("beta-load-amount")
                               , title: "Maximum replies to have loaded. "
-                                     + "Removes older replies to make room."
+                                     + "Removes older replies to make room. "
+                                     + "Experimental feature."
                               }, [
                         "option", { textContent: "∞" }, [],
                         "option", { textContent: "25" }, [],
@@ -1585,9 +1658,7 @@ function optionsUI(){
                     "input", { type: "checkbox"
                              , checked: readify('beta-ignoring', false)
                              , onchange: togglify('beta-ignoring')
-                             , title: "Disable the full ignore feature; only "
-                                    + "matters if you've got something added "
-                                    + "to the lists."
+                             , title: "Disable the full ignore feature."
                              }, []
                 ]
             ],
@@ -1685,7 +1756,7 @@ function ignoreUI(){
             ]
         ],
         "tbody", {}, [
-            "tr", { title: "All of a user's posts by their usernames" }, [
+            "tr", { title: "Hide all of a user's posts by their username" }, [
                 "td", { className: "c_desc", textContent: "Users" }, [],
                 "td", {}, [
                     "input", { value: readify('beta-ignoredusers', []).join(',')
@@ -1695,7 +1766,7 @@ function ignoreUI(){
                 ],
                 "td", { textContent: "Comma separated" }, []
             ],
-            "tr", { title: "Specific posts by their post contents" }, [
+            "tr", { title: "Hide specific posts by their post contents" }, [
                 "td", { className: "c_desc", textContent: "Post contents" }, [],
                 "td", {}, [
                     "input", { value: readify('beta-ignoredposts', []).join(',')
@@ -1705,7 +1776,7 @@ function ignoreUI(){
                 ],
                 "td", { textContent: "Comma separated" }, []
             ],
-            "tr", { title: "Username links everywhere" }, [
+            "tr", { title: "Hide username links everywhere by their IDs" }, [
                 "td", { className: "c_desc", textContent: "Global member IDs" }, [],
                 "td", {}, [
                     "input", { value: readify('beta-memberids', []).join(',')
@@ -1740,13 +1811,13 @@ function beepAudio() {
 }
 
 // addHideButtons :: IO ()
-function addHideButton(x){
+function addHideButton(x) {
     return null
 }
 
 
 // main :: IO ()
-function main(){
+function main() {
     verb("BetaBoards!")
 
     var s = style()
