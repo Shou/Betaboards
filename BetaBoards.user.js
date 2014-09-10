@@ -5,7 +5,7 @@
 // @version         0.7.1
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
-// @copyright       2013, Shou
+// @copyright       2014, Shou
 // @license         MIT
 // @updateURL       https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
 // @downloadURL     https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
@@ -31,6 +31,8 @@
 // - postNums probably doesn't apply to updated posts
 // - sometimes posts are loaded with missing TRs
 // - ignored users only take up one TR which fucks up things
+// - XHR encoding is incorrect; esp. on POST.
+//      - Use document.characterSet (?) and modify XHR POST headers.
 
 // {{{ Global variables
 
