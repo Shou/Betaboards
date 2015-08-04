@@ -2,10 +2,10 @@
 // ==UserScript==
 // @name            BetaBoards
 // @description     It's just like IRC now
-// @version         0.7.1
+// @version         0.7.2
 // @include         http*://*.zetaboards.com/*
 // @author          Shou
-// @copyright       2014, Shou
+// @copyright       2015, Shou
 // @license         MIT
 // @updateURL       https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
 // @downloadURL     https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
@@ -1456,6 +1456,8 @@ function pageUpdate() {
             var url = getURL()
             console.log(url)
             request(url, addPosts)
+        
+            window.history.pushState(null, null, getURL())
 
         } catch(e) {
             debu(e)
