@@ -19,5 +19,5 @@ Page auto-loading for Zetaboards
 2. https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
 
 ### Chrome
-1. Download the script https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
-2. Drag into extensions page.
+1. Install Tampermonkey
+2. https://github.com/Shou/Betaboards/raw/master/BetaBoards.user.js
