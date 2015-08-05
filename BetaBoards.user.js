@@ -50,6 +50,9 @@ var old = 0
 // | Global timeout length in milliseconds
 // time :: Int
 var time = 10000
+// | Previous URL path
+// opath :: String
+var opath = ""
 
 // | Is mouse0 pressed
 // mouse0 :: Bool
@@ -1456,8 +1459,13 @@ function pageUpdate() {
             var url = getURL()
             console.log(url)
             request(url, addPosts)
-        
-            window.history.pushState(null, null, getURL())
+            
+            // don't update and clog the history unless the URL actually differs
+            if (opath !== url) {
+                window.history.pushState(null, null, url)
+                
+                opath = url
+            }
 
         } catch(e) {
             debu(e)
